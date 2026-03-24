@@ -9,7 +9,7 @@ Baue eine Node.js/Express API-App (Deployment auf Railway), die ein Immobiliengu
 **Zielzustand:** Ein Zapier-Webhook-Call → Railway App → 13 sequentielle Claude-Calls mit gecachtem PDF → ein JSON-Response mit allen Ergebnissen.
 
 ---
-
+.
 ## Architektur
 
 ```

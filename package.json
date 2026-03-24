@@ -1,0 +1,16 @@
+{
+  "name": "gutachten-app",
+  "version": "1.0.0",
+  "description": "Automated real estate report evaluation API using Claude AI with prompt caching",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "@anthropic-ai/sdk": "^0.39.0"
+  }
+}

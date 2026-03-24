@@ -50,7 +50,7 @@ Zapier Webhook (POST /evaluate)
 - **Framework:** Express
 - **API Client:** @anthropic-ai/sdk
 - **Deployment:** Railway (Dockerfile)
-- **Modell:** claude-sonnet-4-20250514 (konfigurierbar über ENV `CLAUDE_MODEL`)
+- **Modell:** claude-opus-4-6 (konfigurierbar über ENV `CLAUDE_MODEL`, siehe Modellwahl unten)
 
 ---
 
@@ -149,7 +149,7 @@ Alle diese Felder müssen im JSON-Response enthalten sein (= die Variablen die Z
 
 ### 2. Claude API-Call Funktion
 
-Jeder Prüfschritt nutzt die gleiche Funktion:
+Jeder Prüfschritt nutzt die gleiche Funktion. Die Rolle (Sachverständiger) ist bereits in jedem Prompt enthalten — kein separater System-Prompt nötig.
 
 ```javascript
 // Wichtig: cache_control auf dem PDF-Document-Block
@@ -183,7 +183,6 @@ const messages = [{
 - Der PDF-Base64-Content bekommt `cache_control: { type: 'ephemeral' }`
 - Beim ersten Call wird das PDF voll berechnet (~100% Kosten)
 - Alle Folge-Calls: PDF-Tokens kosten nur noch 10%
-- System-Prompt ebenfalls mit `cache_control: { type: 'ephemeral' }`
 - Beta-Header setzen: `anthropic-beta: prompt-caching-2024-07-31`
 
 ### 4. KO-Kriterien Parsing
@@ -232,115 +231,46 @@ Separater Claude-Call **ohne PDF** — nur die Ergebnistexte der 7 Prüfkriterie
 
 ## Prompt-Texte (prompts.js)
 
-Alle Prompts sind bereits fertig und müssen 1:1 übernommen werden. Die Datei enthält:
+**Die Datei prompts.js enthält alle Prompts 1:1 aus dem Original-DOCX.** Es wurde NICHTS am Prompt-Text verändert — nur das Zapier-Escaping (`\\n` → Newline, `\"` → `"`) aufgelöst und die Zapier-Template-Variablen (`{{303093445__answer[]text}}`) durch JS-Template-Variablen (`${results.formaler_aufbau}`) ersetzt.
 
-### Shared Blocks (DRY)
-- `SYSTEM_ROLE` — Sachverständigen-Rolle für KO-Kriterien
-- `KO_SPEC_BLOCK(n)` — JSON-Output Spezifikationen für KO-Kriterien
-- `KO_CONTEXT` — Kontext-Block für KO-Kriterien
-- `KO_NOTES(n)` — Notizen-Block für KO-Kriterien
-- `KO_RULE` — Bewertungsregel (Ja nur wenn alle Teilaspekte erfüllt)
-- `PRUEF_SPEC_BLOCK` — Spezifikationen für Prüfkriterien (Bullet Points, 500 Zeichen, Bewertung: X/10)
-- `PRUEF_CONTEXT` — Kontext-Block für Prüfkriterien
-- `PRUEF_NOTES` — Notizen-Block für Prüfkriterien
-- `BEWERTUNGSSKALA` — Punkteskala 0–10
+Die Datei ist bereits fertig und muss nicht neu geschrieben werden — einfach in das Projekt übernehmen.
 
-### KO-Kriterien Prompts
-- `KO_1` — Formalia und Anlagen, Rechtliche Verhältnisse, Lage und Marktdaten (3 Kategorien)
-- `KO_2` — Baurecht, Grund und Boden (2 Kategorien)
-- `KO_3` — Tatsächliche Nutzung, Gebäude und Flächen, Wertermittlungsverfahren (3 Kategorien)
-- `KO_4` — Besondere Merkmale, Plausibilisierung Verkehrswert (2 Kategorien)
-
-### Prüfkriterien Prompts (Text + Score Output)
-- `FORMALER_AUFBAU`
-- `DARSTELLUNG_BEFUND`
-- `FACHLICHER_INHALT`
-- `BODENWERTERMITTLUNG` — gibt "Nicht vorhanden" wenn nicht im Gutachten
-- `ERTRAGSWERTBERECHNUNG` — gibt "Nicht vorhanden" wenn nicht im Gutachten
-- `SACHWERTBERECHNUNG` — gibt "Nicht vorhanden" wenn nicht im Gutachten
-- `VERGLEICHSWERTBERECHNUNG` — gibt "Nicht vorhanden" wenn nicht im Gutachten
-
-### Meta-Prompts
-- `IMMOBILIENBESCHREIBUNG` — Objektbeschreibung (3–5 Sätze Fließtext, kein PDF-Upload nötig... doch, braucht PDF)
-- `ZUSAMMENFASSUNG(results)` — Funktion die die Ergebnistexte als Parameter nimmt und den Prompt generiert (KEIN PDF nötig)
+### Exportierte Konstanten:
+- `KO_1` — Formalia und Anlagen, Rechtliche Verhältnisse, Lage und Marktdaten (3 Kategorien, JSON-Output)
+- `KO_2` — Baurecht, Grund und Boden (2 Kategorien, JSON-Output)
+- `KO_3` — Tatsächliche Nutzung, Gebäude und Flächen, Wertermittlungsverfahren (3 Kategorien, JSON-Output)
+- `KO_4` — Besondere Merkmale, Plausibilisierung Verkehrswert (2 Kategorien, JSON-Output)
+- `FORMALER_AUFBAU` — Text + Score
+- `DARSTELLUNG_BEFUND` — Text + Score
+- `FACHLICHER_INHALT` — Text + Score
+- `BODENWERTERMITTLUNG` — Text + Score (oder "Nicht vorhanden")
+- `ERTRAGSWERTBERECHNUNG` — Text + Score (oder "Nicht vorhanden")
+- `SACHWERTBERECHNUNG` — Text + Score (oder "Nicht vorhanden")
+- `VERGLEICHSWERTBERECHNUNG` — Text + Score (oder "Nicht vorhanden")
+- `ZUSAMMENFASSUNG(results)` — Funktion, nimmt Ergebnistexte als Parameter, generiert Prompt (KEIN PDF nötig)
+- `IMMOBILIENBESCHREIBUNG` — Objektbeschreibung (3–5 Sätze Fließtext, braucht PDF)
+- `TEXTPRUEFUNG` — Prompt zum Bereinigen technischer Referenzen (optional als Post-Processing nutzbar)
 
 ---
 
 ## Prompt-Texte im Detail
 
-Hier sind die vollständigen Prompt-Texte die in prompts.js übernommen werden müssen:
+**Die Datei `prompts.js` ist bereits fertig und enthält alle Prompts 1:1 aus dem Original-DOCX.** Einfach in das Projekt übernehmen — nichts ändern.
 
-### SYSTEM_ROLE (nur für KO-Kriterien)
-```
-Du bist ein hochqualifizierter, sehr kritischer Sachverständiger für Immobilienbewertung mit fundierter Expertise in der Analyse und Bewertung von Verkehrswertgutachten nach § 194 BauGB. Deine Prüfung erfolgt nach den Anforderungen der DIAZert und gängiger Bewertungsstandards.
-```
+Wichtige Details für die Implementierung:
 
-### KO_1 Prompt
+**KO-Kriterien (KO_1–KO_4):** Output ist reines JSON. Die Keys sind:
+- KO_1: `formalia_und_anlagen`, `rechtliche_verhaeltnisse`, `lage_und_marktdaten`
+- KO_2: `baurecht`, `grund_und_boden`
+- KO_3: `tatsaechliche_nutzung`, `gebaeude_und_flaechen`, `wertermittlungsverfahren`
+- KO_4: `besondere_merkmale`, `plausibilisierung_verkehrswert`
+Jeder Key hat `{ "erfuellt": "Ja"|"Nein", "kommentar": "..." }`.
 
-**Kategorien:** formalia_und_anlagen, rechtliche_verhaeltnisse, lage_und_marktdaten
-**Output:** JSON mit erfuellt (Ja/Nein) + kommentar (max 250 Zeichen)
+**Prüfkriterien:** Output ist Fließtext mit Bullet Points (•) und "Bewertung: X/10" am Ende. Bodenwertermittlung, Ertragswert, Sachwert, Vergleichswert können "Nicht vorhanden" zurückgeben.
 
-Prüfkategorien:
-- Formalia und Anlagen: Alle formalen Angaben (SV, Gutachtennummer, Objekt, Stichtage, VW), Schlussformel mit Unterschrift/Stempel, vollständige Anlagen inkl. Fotodokumentation mit Herkunftsangabe
-- Rechtliche Verhältnisse: Auftraggeber (ggf. anonymisiert), Zweck/Art des Gutachtens, Ortstermin-Daten inkl. Teilnehmer, Umfang und Einschränkungen
-- Lage und Marktdaten: Makro-/Mikrolage (Infrastruktur, Umweltfaktoren), Marktdaten (Immobilienmarkt, Demografie, Kaufkraft, Arbeitsmarkt, makroökonomische Größen)
+**Zusammenfassung:** Ist eine Funktion `ZUSAMMENFASSUNG(results)` — aufrufen mit Objekt das die 7 Prüfergebnisse enthält. Braucht kein PDF.
 
-Regel: Nur "Ja" wenn ALLE Teilaspekte vollständig. Sobald ein Aspekt fehlt → "Nein" mit konkretem Grund.
-
-### KO_2 Prompt
-
-**Kategorien:** baurecht, grund_und_boden
-
-Prüfkategorien:
-- Baurecht: Bauleitplanung (FNP, B-Plan, §§ 34/35 BauGB), zulässige Nutzung (BauNVO), besondere Regelungen (Bodenordnung, Sanierungsgebiete, Baumschutzsatzung)
-- Grund und Boden: Grundbuch-/Katasterdaten, Baulasten, Altlasten, Erschließung, privatrechtliche Rechte, WEG, Denkmalschutz, Naturgefahren
-
-### KO_3 Prompt
-
-**Kategorien:** tatsaechliche_nutzung, gebaeude_und_flaechen, wertermittlungsverfahren
-
-Prüfkategorien:
-- Tatsächliche Nutzung: Wohnwirtschaftlich/gewerblich/gemischt inkl. Verträge
-- Gebäude und Flächen: Gebäudeart, Baujahr, Modernisierungen, Bauweise, Zustand, Energie, Barrierefreiheit, GRZ/GFZ/WF/NF/BGF mit Quellen und Plausibilitätsprüfung
-- Wertermittlungsverfahren: Verfahrenswahl begründet, Schritte korrekt angewendet (VW/EW/SW je nach Verfahren), Quellen und objektspezifische Begründungen
-
-### KO_4 Prompt
-
-**Kategorien:** besondere_merkmale, plausibilisierung_verkehrswert
-
-Prüfkategorien:
-- Besondere Merkmale: Objektspezifische Merkmale (Baumängel, Rechte, PV-Anlage etc.) nachvollziehbar hergeleitet
-- Plausibilisierung: Ergebnis plausibilisiert durch Vergleichspreise/Wertfaktoren/Marktanalysen. Erfüllt nur wenn: (1) zweites Verfahren angewendet ODER (2) explizite textliche Plausibilisierung. Abweichung >10% zwischen Verfahren muss begründet sein.
-
-### Prüfkriterien-Prompts (Formaler Aufbau, Darstellung Befund, etc.)
-
-Alle folgen dem gleichen Schema:
-1. Rolle als SV für Immobilienbewertung
-2. Prüfe nach DIAZert-Standards
-3. Identifiziere Schwächen/Stärken mit Seitenzahlen
-4. Konkrete Handlungsempfehlungen
-5. Bewertung 1–10
-
-**Output-Format:**
-- Bullet Points mit • (nicht -)
-- Max 500 Zeichen
-- "Bewertung: X/10" am Ende mit Absatz davor
-- Kein Markdown, kein Markup
-- Formelle Anrede "Sie"
-- Kein Text nach der Bewertung
-
-**Bodenwertermittlung/Ertragswert/Sachwert/Vergleichswert:**
-- Erst prüfen ob das Verfahren im Gutachten vorkommt
-- Falls nicht → nur "Nicht vorhanden" ausgeben
-- Falls ja → normale Prüfung + Bewertung
-
-### Immobilienbeschreibung
-
-3–5 Sätze Fließtext: Objektart, Nutzung, Lage, Wohnfläche, Grundstücksfläche, Baujahr, Art des Gutachtens, Anlass. Nur was im PDF steht. Keine Klarnamen. Keine Quellenverweise.
-
-### Zusammenfassung
-
-Funktion die 7 Prüfergebnisse als Input nimmt. Berechnet Gesamtbewertung als Durchschnitt (gerundet auf 1 Nachkommastelle). "Nicht vorhanden" ignorieren. Max 500 Zeichen. "Gesamtbewertung: X/10" am Ende. Kein PDF nötig — nur Text-Input.
+**Textprüfung:** `TEXTPRUEFUNG` enthält den Prompt zum Bereinigen technischer Referenzen. Kann optional als Post-Processing-Step genutzt werden, oder die Bereinigung wird per Regex im Code gemacht.
 
 ---
 
@@ -350,13 +280,12 @@ Funktion die 7 Prüfergebnisse als Input nimmt. Berechnet Gesamtbewertung als Du
 1. `npm init -y`
 2. `npm install express @anthropic-ai/sdk`
 3. Dockerfile erstellen (Node 20 Alpine)
-4. `.env.example` mit `ANTHROPIC_API_KEY`, `PORT`, `CLAUDE_MODEL`
+4. `.env.example` mit `ANTHROPIC_API_KEY`, `PORT`, `CLAUDE_MODEL=claude-opus-4-6`
 
 ### Phase 2: prompts.js
-1. Alle Prompt-Texte als Konstanten exportieren
-2. Shared Blocks (Spezifikationen, Kontext, Notizen) als wiederverwendbare Strings/Funktionen
-3. `ZUSAMMENFASSUNG` als Funktion die `results`-Objekt nimmt
-4. Testen: `node -e "const p = require('./prompts'); console.log(Object.keys(p))"`
+1. **Datei ist bereits fertig** — einfach `prompts.js` ins Projekt kopieren
+2. Testen: `node -e "const p = require('./prompts'); console.log(Object.keys(p))"`
+3. Verifizieren: `typeof p.ZUSAMMENFASSUNG === 'function'`
 
 ### Phase 3: index.js — Core Logic
 1. Express Server mit JSON-Body-Parsing (50mb Limit)
@@ -386,7 +315,7 @@ Funktion die 7 Prüfergebnisse als Input nimmt. Berechnet Gesamtbewertung als Du
 ### Phase 6: Railway Deployment
 1. GitHub Repo erstellen + pushen
 2. Railway Projekt → Deploy from GitHub
-3. ENV Vars setzen: `ANTHROPIC_API_KEY`, `PORT=3000`, `CLAUDE_MODEL`
+3. ENV Vars setzen: `ANTHROPIC_API_KEY`, `PORT=3000`, `CLAUDE_MODEL=claude-opus-4-6`
 4. Test-Call von Postman/curl
 
 ### Phase 7: Zapier umbauen
@@ -418,14 +347,40 @@ Falls Option B nötig ist, muss die App erweitert werden um:
 
 ---
 
-## Kosten-Schätzung (pro Gutachten)
+## Modellwahl
 
-**Ohne diese App (aktuell):**
-- ~10 separate PDF-Uploads × ~50 Seiten × ~1.500 Tokens/Seite = ~750.000 Input-Tokens
-- Sonnet: ~$2.25 nur für Input
+**Empfehlung: Claude Opus 4.6 (`claude-opus-4-6`)**
 
-**Mit dieser App (Prompt Caching):**
-- 1× volle PDF-Kosten: ~75.000 Tokens × $3/MTok = $0.23
-- 12× gecachte PDF: ~75.000 × 12 × $0.30/MTok = $0.27
-- Prompt-Tokens + Output: ~$0.30
-- **Total: ~$0.80 pro Gutachten** (ca. 65% günstiger)
+Für diesen Use Case — fachlich komplexe Immobilienbewertung nach DIAZert-Standards, visuelle Erkennung von Tabellen/Stempeln/Karten in PDFs, Erkennung fehlender Angaben — ist Opus 4.6 die richtige Wahl. Der Preisunterschied ist pro Gutachten nur ~$0.50–$0.70 mehr als Sonnet, aber die Qualität bei tiefem Reasoning über lange, fachlich dichte Dokumente ist messbar besser.
+
+| Modell | Input/MTok | Output/MTok | Kontext | API String |
+|--------|-----------|-------------|---------|------------|
+| Claude Opus 4.6 | $5 | $25 | 1M Tokens | `claude-opus-4-6` |
+| Claude Sonnet 4.6 | $3 | $15 | 1M Tokens | `claude-sonnet-4-6` |
+
+Beide Modelle haben 1M Token Kontext ohne Preisaufschlag und unterstützen Prompt Caching. Das Modell ist über die ENV-Variable `CLAUDE_MODEL` konfigurierbar — falls die Kosten irgendwann ein Thema werden, kann jederzeit auf Sonnet umgestellt werden, ohne Code-Änderung.
+
+**In .env.example:**
+```
+CLAUDE_MODEL=claude-opus-4-6
+```
+
+---
+
+## Kosten-Schätzung (pro Gutachten, ~50 Seiten PDF)
+
+**Ohne diese App (aktuell, ~10 separate Uploads):**
+- ~10 separate PDF-Uploads × ~75.000 Tokens/PDF = ~750.000 Input-Tokens
+- Mit Opus: ~$3.75 nur für Input
+- Mit Sonnet: ~$2.25 nur für Input
+
+**Mit dieser App (Prompt Caching, 13 sequentielle Calls):**
+
+| | Opus 4.6 | Sonnet 4.6 |
+|---|---------|------------|
+| 1× voller PDF-Upload | $0.38 | $0.23 |
+| 12× gecachtes PDF (10% Kosten) | $0.45 | $0.27 |
+| Prompt-Tokens (13 Calls) | $0.15 | $0.09 |
+| Output-Tokens (13 Calls) | $0.50 | $0.30 |
+| **Total pro Gutachten** | **~$1.50** | **~$0.90** |
+| **Ersparnis vs. aktuell** | **~60%** | **~60%** |

@@ -72,6 +72,9 @@ CREATE TABLE IF NOT EXISTS gutachten (
   zusammenfassung_score NUMERIC,
   gesamtscore NUMERIC,
 
+  -- Ranking
+  platzierung INTEGER,
+
   -- Google Drive Links
   gutachten_drive_link TEXT,
   pruefbericht_drive_link TEXT,
@@ -88,6 +91,7 @@ CREATE TABLE IF NOT EXISTS gutachten (
 -- Index for AG queries
 CREATE INDEX IF NOT EXISTS idx_gutachten_unternehmensname ON gutachten(unternehmensname);
 CREATE INDEX IF NOT EXISTS idx_gutachten_status ON gutachten(status);
+CREATE INDEX IF NOT EXISTS idx_gutachten_gesamtscore ON gutachten(gesamtscore DESC);
 
 -- ── AG Rankings Table ───────────────────────────────────────────────
 

@@ -78,8 +78,8 @@ app.post('/webhook/fillout', (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // Validate payment status
-  if (body.status !== 'succeeded') {
+  // Validate payment status (skip check if no payment field — e.g. test submissions)
+  if (body.status && body.status !== 'succeeded') {
     return res.status(400).json({ error: 'Payment not succeeded', status: body.status });
   }
 

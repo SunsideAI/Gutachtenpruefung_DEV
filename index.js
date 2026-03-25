@@ -72,8 +72,9 @@ app.post('/evaluate', async (req, res) => {
 app.post('/webhook/fillout', (req, res) => {
   const body = req.body;
 
-  // Validate webhook secret
-  if (body.webhook_secret !== process.env.WEBHOOK_SECRET) {
+  // Validate webhook secret (from body, query param, or header)
+  const secret = body.webhook_secret || req.query.secret || req.headers['x-webhook-secret'];
+  if (secret !== process.env.WEBHOOK_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 

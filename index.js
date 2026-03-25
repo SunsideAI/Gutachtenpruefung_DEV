@@ -72,54 +72,88 @@ app.post('/evaluate', async (req, res) => {
 app.post('/webhook/fillout', (req, res) => {
   const body = req.body;
 
-  // Validate webhook secret (from body, query param, or header)
-  const secret = body.webhook_secret || req.query.secret || req.headers['x-webhook-secret'];
+  // Validate webhook secret (from query param, header, or body)
+  const secret = req.query.secret || req.headers['x-webhook-secret'] || body.webhook_secret;
   if (secret !== process.env.WEBHOOK_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // Log incoming payload for debugging
-  console.log('[webhook] Received fields:', Object.keys(body).join(', '));
-  console.log('[webhook] Body:', JSON.stringify(body, null, 2).substring(0, 3000));
+  // Parse Fillout submission format:
+  // { formId, formName, submission: { submissionId, questions: [{ name, value, ... }] } }
+  const submission = body.submission || {};
+  const questions = submission.questions || [];
 
-  // Validate payment status (skip check if no payment field — e.g. test submissions)
-  if (body.status && body.status !== 'succeeded') {
-    return res.status(400).json({ error: 'Payment not succeeded', status: body.status });
+  // Build a flat key→value map from questions array
+  const fields = {};
+  for (const q of questions) {
+    if (q.name && q.value !== undefined && q.value !== null) {
+      fields[q.name] = q.value;
+    }
   }
 
-  // Find PDF URL (try known field names)
-  const pdfUrl = body['Gof 6 Url'] || body['pdf_url'] || body['file_url'];
+  console.log('[webhook] Submission:', submission.submissionId);
+  console.log('[webhook] Fields:', Object.keys(fields).join(', '));
+
+  // Validate payment status (from Fillout payment fields)
+  const paymentStatus = fields['status'] || submission.payment?.status;
+  if (paymentStatus && paymentStatus !== 'succeeded') {
+    return res.status(400).json({ error: 'Payment not succeeded', status: paymentStatus });
+  }
+
+  // Find PDF — Fillout file uploads have value as array: [{ url, name }] or string URL
+  let pdfUrl = null;
+  let pdfFilename = 'gutachten.pdf';
+
+  for (const q of questions) {
+    if (q.type === 'FileUpload' || q.type === 'file_upload') {
+      const val = q.value;
+      if (Array.isArray(val) && val.length > 0) {
+        pdfUrl = val[0].url || val[0];
+        pdfFilename = val[0].name || val[0].fileName || pdfFilename;
+      } else if (typeof val === 'string') {
+        pdfUrl = val;
+      }
+      break;
+    }
+  }
+
+  // Fallback: try known field names
   if (!pdfUrl) {
-    // Return all field names to help debug field mapping
+    pdfUrl = fields['Gutachten PDF'] || fields['PDF'] || fields['Datei'] || fields['File'];
+  }
+
+  if (!pdfUrl) {
     return res.status(400).json({
-      error: 'No PDF URL found',
-      received_fields: Object.keys(body),
-      hint: 'Check which field contains the PDF URL and update the mapping'
+      error: 'No PDF URL found in submission',
+      available_fields: Object.keys(fields),
+      question_types: questions.map(q => ({ name: q.name, type: q.type }))
     });
   }
 
-  const submissionId = body['Submission Id'];
+  const submissionId = submission.submissionId || `fillout_${Date.now()}`;
 
-  // Map Fillout fields to internal format
+  // Map fields to internal format
   const payload = {
     fillout_submission_id: submissionId,
-    vorname: body['Vorname'] || '',
-    nachname: body['Nachname'] || '',
-    email: body['E-Mail'] || '',
-    unternehmensname: body['Unternehmensname'] || '',
+    vorname: fields['Vorname'] || '',
+    nachname: fields['Nachname'] || '',
+    email: fields['E-Mail'] || fields['Email'] || '',
+    unternehmensname: fields['Unternehmensname'] || fields['Unternehmen'] || '',
     adresse: {
-      strasse: body['Xh En Address'] || '',
-      stadt: body['Xh En City'] || '',
-      bundesland: body['Xh En State'] || '',
-      plz: body['Xh En Zip Code'] || '',
-      land: body['Xh En Country'] || ''
+      strasse: fields['Straße'] || fields['Adresse'] || '',
+      stadt: fields['Stadt'] || fields['City'] || '',
+      bundesland: fields['Bundesland'] || fields['State'] || '',
+      plz: fields['PLZ'] || fields['Postleitzahl'] || '',
+      land: fields['Land'] || fields['Country'] || 'Deutschland'
     },
     pdf_url: pdfUrl,
-    pdf_filename: body['Gof 6 Filename'] || 'gutachten.pdf',
-    stripe_payment_id: body['paymentId'] || '',
-    stripe_amount: body['totalAmount'] || 0,
-    submission_time: body['Submission Time'] || new Date().toISOString()
+    pdf_filename: pdfFilename,
+    stripe_payment_id: submission.payment?.paymentId || fields['paymentId'] || '',
+    stripe_amount: submission.payment?.totalAmount || fields['totalAmount'] || 0,
+    submission_time: submission.submissionTime || new Date().toISOString()
   };
+
+  console.log(`[webhook] Accepted: ${pdfFilename} from ${payload.vorname} ${payload.nachname}`);
 
   // Respond immediately
   res.status(200).json({

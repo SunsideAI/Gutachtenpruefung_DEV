@@ -108,8 +108,11 @@ function transformRecord(atRecord) {
   // Gutachten Titel → pdf_filename
   row.pdf_filename = fields['Gutachten Titel'] || null;
 
-  // Ranking from Airtable (already calculated)
+  // Ranking from Airtable (already calculated) → platzierung in Supabase
   const ranking = fields['Ranking'];
+  row.platzierung = (ranking !== undefined && ranking !== null && ranking !== '')
+    ? parseInt(ranking)
+    : null;
 
   // Map all score fields (pure numbers)
   for (const [atField, sbField] of Object.entries(SCORE_FIELD_MAP)) {

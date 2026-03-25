@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Gutachtenprüfung</title>
+    <style>
+        @page {
+            margin: 24px 20px 40px 20px;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: white;
+            line-height: 1.4;
+            font-size: 8.5pt;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #444;
+        }
+
+        .wrapper {
+            width: 100%;
+            max-width: 800px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: stretch;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+            padding: 24px 36px 32px;
+            box-sizing: border-box;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+
+        .header {
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 6px;
+        }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 6px;
+        }
+
+        .header-row h1 {
+            font-size: 16pt;
+            color: #444;
+            margin: 0;
+            letter-spacing: 0.3px;
+        }
+
+        .logo {
+            max-width: 180px;
+            object-fit: contain;
+        }
+
+        .header h1 {
+            font-size: 16pt;
+            color: #444;
+            margin: 0 0 6px 0;
+            letter-spacing: 0.3px;
+            text-align: center;
+        }
+
+        .address {
+            text-align: left;
+            font-size: 8pt;
+            color: #444;
+            line-height: 1.4;
+        }
+
+        .section {
+            margin-bottom: 12px;
+        }
+
+        .section h2 {
+            font-size: 10pt;
+            color: #444;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+        }
+
+        .info-box {
+            background-color: #f9f9f9;
+            border-left: 4px solid #779d93;
+            padding: 10px 12px;
+            border-radius: 4px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .info-box-title {
+            color: #444;
+            margin-bottom: 6px;
+            display: block;
+            font-size: 9pt;
+        }
+
+        .ampel {
+            display: inline-block;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 10px;
+            color: white;
+            font-size: 8pt;
+        }
+
+        .ampel.gruen {
+            background: #4caf50;
+        }
+
+        .ampel.gelb {
+            background: #ffc107;
+        }
+
+        .ampel.rot {
+            background: #f44336;
+        }
+
+        .ampel.grau {
+            background: #9e9e9e;
+        }
+
+        .hinweis1,
+        .hinweis2 {
+            font-size: 7.5pt;
+            color: #999;
+            line-height: 1.3;
+        }
+
+        .hinweis1 {
+            text-align: center;
+            margin-top: 24px;
+        }
+
+        .hinweis2 {
+            text-align: left;
+            margin-top: 12px;
+        }
+
+        .tag-bubble {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            padding: 1px 6px;
+            font-size: 12px;
+            color: #444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .bullet-text {
+            display: block;
+            font-size: 8.5pt;
+            color: #444;
+            white-space: pre-line;
+            line-height: 1.2;
+            margin: 2px 0 8px 0;
+        }
+
+        .no-page-break {
+            page-break-inside: avoid;
+            break-inside: avoid;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .bewertungsbox {
+            background: none;
+            margin-bottom: 16px;
+            page-break-inside: avoid;
+        }
+
+        .box-header {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            align-items: baseline;
+            margin-bottom: 4px;
+            gap: 8px;
+        }
+
+        .kategorie {
+            flex: 1 1 30%;
+            font-weight: bold;
+            font-size: 9pt;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        .frage {
+            flex: 1 1 55%;
+            font-size: 9pt;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        .ampel {
+            flex: 1 1 10%;
+            text-align: right;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        .ampel-indikator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .kommentar-box {
+            background: #f9f9f9;
+            border-left: 4px solid #779d93;
+            border-radius: 4px;
+            padding: 8px 10px;
+            font-size: 8.5pt;
+            color: #333;
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        .status-text {
+            color: #000;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+        <div class="container">
+
+            <!-- Neuer offizieller Header -->
+            <div class="header" style="margin-bottom: 24px; border-bottom: 2px solid #102c42; padding-bottom: 6px;">
+
+                <!-- Briefkopf: Logo & Kontaktzeile -->
+                <div class="header-row" style="display: flex; justify-content: space-between; align-items: flex-start; font-size: 8pt;">
+
+                    <!-- Linke Seite -->
+                    <div style="max-width: 48%;">
+                        <img src="https://www.sachverstandmitherz.de/wp-content/uploads/beier-partner-logo.png.webp" alt="Logo" style="max-width: 150px; margin-bottom: 6px;"><br><br>
+                        <strong>Gutachten eingereicht von:</strong><br>
+                        {{AG_Vorname}} {{AG_Nachname}}<br><br>
+                        <strong>Datum:</strong> {{Datum}}
+                    </div>
+
+                    <!-- Rechte Seite -->
+                    <div style="text-align: right; max-width: 48%;">
+                        <span style="font-size: 14pt; font-weight: bold;">Patrick Beier</span><br>
+                        Von der IHK Elbe-Weser öffentlich bestellt und<br>
+                        vereidigter Sachverständiger für die Bewertung von<br>
+                        bebauten und unbebauten Grundstücken<br><br>
+                        Schölischer Str. 101 A<br>
+                        21682 Stade<br>
+                        Telefon: 0 41 41 / 80 29 08 - 0<br>
+                        Telefax: 0 41 41 / 80 29 08 - 8<br>
+                        <a href="http://www.sachverstandmitherz.de">www.sachverstandmitherz.de</a><br>
+                        <a href="mailto:kontakt@beierundpartner.de">kontakt@beierundpartner.de</a><br><br>
+                    </div>
+                </div>
+
+                <!-- Titel -->
+                <h1 style="font-size: 16pt; color: #333; margin: 24px 0 0 0; text-align: left;">
+                    KI-gestützte Gutachtenprüfung
+                </h1>
+            </div>
+
+
+            <!-- Bewertung des Gutachtens -->
+            <div class="section">
+                <h2>Bewertung Ihres eingereichten Gutachtens: {{Gutachten}}</h2>
+
+                <!-- Immobilienbeschreibung -->
+                <div class="info-box">
+                    <strong class="info-box-title">
+                        <img src="https://cdn-icons-png.flaticon.com/128/8912/8912898.png" alt="Liste Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                        Objektbeschreibung
+                    </strong>
+                    <p style="margin-top: 8px;">
+                        <span>{{Objektbeschreibung}}</span>
+                    </p>
+                </div>
+
+                <!-- KO-Kriterien -->
+                <div class="section no-break" style="break-inside: avoid; page-break-inside: avoid; display: inline-block; width: 100%;">
+
+                    <h2>1. KO-Prüfung gemäß definierter Mindestanforderungen</h2>
+
+                    <span>In dieser Sektion wird das Gutachten anhand von 10 kritischen Mindestanforderungen (KO-Kriterien) geprüft. Diese Kriterien müssen zwingend erfüllt sein, damit das Gutachten als fachlich belastbare Grundlage dienen kann.
+                        Bereits einzelne schwerwiegende Mängel können zur Ablehnung führen. Die Kriterien beziehen sich sowohl auf formale als auch auf inhaltlich zentrale Bestandteile der Wertermittlung.</span>
+                </div>
+
+                <!-- Formalia und Anlagen -->
+                <div class="bewertungsbox">
+                    <div style="background: #f9f9f9; border-left: 4px solid #779d93; border-radius: 4px; padding: 12px 16px;">
+                        <div class="box-header">
+                            <div class="kategorie">Formalia und Anlagen</div>
+                            <div class="frage">
+                                <strong>Frage:</strong> Sind alle formalen Angaben vorhanden und Anlagen vollständig inkl. Unterschrift und Fotodokumentation?
+                            </div>
+                            <div class="ampel">
+                                <span class="status-text">{{Formalia_Erfuellt}}</span>
+                                <span class="ampel-indikator" style="background-color: {% if Formalia_Erfuellt == 'Ja' %}#4caf50{% else %}#ef5350{% endif %}; width: 12px; height: 12px; border-radius: 50%; display: inline-block;"></span>
+                            </div>
+                        </div>
+                        <div class="kommentar-box" style="border-left: none; background: none; padding: 0; margin-top: 8px;">
+                            <strong>Kommentar/Beschreibung:</strong><br>
+                            {{Formalia_Kommentar}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rechtliche Verhältnnisse -->
+                <div class="bewertungsbox">
+                    <div style="background: #f9f9f9; border-left: 4px solid #779d93; border-radius: 4px; padding: 12px 16px;">
+                        <div class="box-header">
+                            <div class="kategorie">Rechtliche Verhältnisse</div>
+                            <div class="frage"><strong>Frage:</strong> Ist der Auftraggeber sowie Zweck und Ortstermin mit Teilnehmern dokumentiert?</div>
+                            <div class="ampel">
+                                <span class="status-text"> {{Recht_Erfuellt}}</span>
+                                <span class="ampel-indikator" style="background-color: {% if Recht_Erfuellt == 'Ja' %}#4caf50{% else %}#ef5350{% endif %}; width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px;"></span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <strong>Kommentar/Beschreibung:</strong><br>
+                            {{Recht_Kommentar}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lage und Marktdaten -->
+                <div class="bewertungsbox">
+                    <div style="background: #f9f9f9; border-left: 4px solid #779d93; border-radius: 4px; padding: 12px 16px;">
+                        <div class="box-header">
+                            <div class="kategorie">Lage und Marktdaten</div>
+                            <div class="frage"><strong>Frage:</strong> Werden Makro-/Mikrolage und Marktdaten nachvollziehbar beschrieben?</div>
+                            <div class="ampel">
+                                <span class="status-text"> {{Lage_Erfuellt}}</span>
+                                <span class="ampel-indikator" style="background-color: {% if Lage_Erfuellt == 'Ja' %}#4caf50{% else %}#ef5350{% endif %}; width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px;"></span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <strong>Kommentar/Beschreibung:</strong><br>
+                            {{Lage_Kommentar}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Baurecht -->
+                <div class="bewertungsbox">
+                    <div style="background: #f9f9f9; border-left: 4px solid #779d93; border-radius: 4px; padding: 12px 16px;">
+                        <div class="box-header">
+                            <div class="kategorie">Baurecht</div>
+                            <div class="frage"><strong>Frage:</strong> Ist das Baurecht korrekt und vollständig wiedergegeben?</div>
+                            <div class="ampel">
+                                <span class="status-text"> {{Baurecht_Erfuellt}}</span>
+                                <span class="ampel-indikator" style="background-color: {% if Baurecht_Erfuellt == 'Ja' %}#4caf50{% else %}#ef5350{% endif %}; width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px;"></span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <strong>Kommentar/Beschreibung:</strong><br>
+                            {{Baurecht_Kommentar}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grund und Boden -->
+                <div class="bewertungsbox">
+                    <div style="background: #f9f9f9; border-left: 4px solid #779d93; border-radius: 4px; padding: 12px 16px;">
+                        <div class="box-header">
+                            <div class="kategorie">Grund und Boden</div>
+                            <div class="frage"><strong>Frage:</strong> Sind Kataster, Erschließung, Rechte und Altlasten vollständig dargestellt?</div>
+                            <div class="ampel">
+                                <span class="status-text"> {{Boden_Erfuellt}}</span>
+                                <span class="ampel-indikator" style="background-color: {% if Boden_Erfuellt == 'Ja' %}#4caf50{% else %}#ef5350{% endif %}; width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px;"></span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <strong>Kommentar/Beschreibung:</strong><br>
+                            {{Boden_Kommentar}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tatsächliche Nutzung -->
+                <div class="bewertungsbox">
+                    <div style="background: #f9f9f9; border-left: 4px solid #779d93; border-radius: 4px; padding: 12px 16px;">
+                        <div class="box-header">
+                            <div class="kategorie">Tatsächliche Nutzung</div>
+                            <div class="frage"><strong>Frage:</strong> Ist die tatsächliche Nutzung inkl. Verträge nachvollziehbar beschrieben?</div>
+                            <div class="ampel">
+                                <span class="status-text"> {{Nutzung_Erfuellt}}</span>
+                                <span class="ampel-indikator" style="background-color: {% if Nutzung_Erfuellt == 'Ja' %}#4caf50{% else %}#ef5350{% endif %}; width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px;"></span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <strong>Kommentar/Beschreibung:</strong><br>
+                            {{Nutzung_Kommentar}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gebäude und Flächen -->
+                <div class="bewertungsbox">
+                    <div style="background: #f9f9f9; border-left: 4px solid #779d93; border-radius: 4px; padding: 12px 16px;">
+                        <div class="box-header">
+                            <div class="kategorie">Gebäude und Flächen</div>
+                            <div class="frage"><strong>Frage:</strong> Sind Baujahr, Zustand, Mängel, Flächenangaben plausibilisiert und belegt?</div>
+                            <div class="ampel">
+                                <span class="status-text"> {{Gebaeude_Erfuellt}}</span>
+                                <span class="ampel-indikator" style="background-color: {% if Gebaeude_Erfuellt == 'Ja' %}#4caf50{% else %}#ef5350{% endif %}; width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px;"></span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <strong>Kommentar/Beschreibung:</strong><br>
+                            {{Gebaeude_Kommentar}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wertermittlungsverfahren -->
+                <div class="bewertungsbox">
+                    <div style="background: #f9f9f9; border-left: 4px solid #779d93; border-radius: 4px; padding: 12px 16px;">
+                        <div class="box-header">
+                            <div class="kategorie">Wertermittlungsverfahren</div>
+                            <div class="frage"><strong>Frage:</strong> Ist das Verfahren marktüblich gewählt und korrekt angewendet worden?</div>
+                            <div class="ampel">
+                                <span class="status-text"> {{Verfahren_Erfuellt}}</span>
+                                <span class="ampel-indikator" style="background-color: {% if Verfahren_Erfuellt == 'Ja' %}#4caf50{% else %}#ef5350{% endif %}; width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px;"></span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <strong>Kommentar/Beschreibung:</strong><br>
+                            {{Verfahren_Kommentar}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Besondere Merkmale -->
+                <div class="bewertungsbox">
+                    <div style="background: #f9f9f9; border-left: 4px solid #779d93; border-radius: 4px; padding: 12px 16px;">
+                        <div class="box-header">
+                            <div class="kategorie">Besondere Merkmale</div>
+                            <div class="frage"><strong>Frage:</strong> Wurden objektspezifische Merkmale nachvollziehbar berücksichtigt?</div>
+                            <div class="ampel">
+                                <span class="status-text"> {{Merkmale_Erfuellt}}</span>
+                                <span class="ampel-indikator" style="background-color: {% if Merkmale_Erfuellt == 'Ja' %}#4caf50{% else %}#ef5350{% endif %}; width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px;"></span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <strong>Kommentar/Beschreibung:</strong><br>
+                            {{Merkmale_Kommentar}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Plausibilisierung Verkehrswert -->
+                <div class="bewertungsbox">
+                    <div style="background: #f9f9f9; border-left: 4px solid #779d93; border-radius: 4px; padding: 12px 16px;">
+                        <div class="box-header">
+                            <div class="kategorie">Plausibilisierung Verkehrswert</div>
+                            <div class="frage"><strong>Frage:</strong> Wurde das Ergebnis nachvollziehbar begründet und plausibilisiert?</div>
+                            <div class="ampel">
+                                <span class="status-text"> {{Plausi_Erfuellt}}</span>
+                                <span class="ampel-indikator" style="background-color: {% if Plausi_Erfuellt == 'Ja' %}#4caf50{% else %}#ef5350{% endif %}; width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px;"></span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <strong>Kommentar/Beschreibung:</strong><br>
+                            {{Plausi_Kommentar}}
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Prüfergebnisse einzeln -->
+                <div class="section no-break" style="break-inside: avoid; page-break-inside: avoid; display: inline-block; width: 100%;">
+
+                    <h2>1. Prüfergebnisse einzeln</h2>
+
+                    <!-- 1. Formaler Aufbau -->
+                    {% assign score = Formaler_Aufbau_Score | plus: 0 %}
+                    {% assign percentage = score | times: 10 %}
+                    <div class="info-box" style="margin-top: 16px;">
+                        <strong class="info-box-title">
+                            <img src="https://cdn-icons-png.flaticon.com/128/171/171322.png" alt="Formaler Aufbau Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                            Formaler Aufbau
+                        </strong>
+                        <span class="bullet-text">{{ Formaler_Aufbau | replace: "•", "<br>•" | remove_first: "<br>" }}</span>
+                        <div style="width: 120px; height: 6px; background: #e5e5e5; border-radius: 3px; overflow: hidden; margin-top: 8px; margin-bottom: 2px;">
+                            <div style="width: {{ percentage }}%; height: 100%; background-color: #779d93;"></div>
+                        </div>
+                        <div style="font-size: 7pt; color: #aaa; display: flex; justify-content: space-between; width: 120px;"><span>0</span><span>5</span><span>10</span></div>
+                        <div style="font-size: 8pt; margin-top: 6px; color: #666;">📊 Bewertet Struktur, Gliederung und Vollständigkeit des Gutachtens.</div>
+                    </div>
+                </div>
+
+                <!-- 2. Befund- und Anknüpfungstatsachen -->
+                {% assign score = Darstellung_Befund_Score | plus: 0 %}
+                {% assign percentage = score | times: 10 %}
+                <div class="info-box" style="margin-top: 16px;">
+                    <strong class="info-box-title">
+                        <img src="https://cdn-icons-png.flaticon.com/128/17775/17775637.png" alt="Befund Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                        Befund- und Anknüpfungstatsachen
+                    </strong>
+                    <span class="bullet-text">{{ Darstellung_Befund_und_Anknuepfungstatsachen | replace: "•", "<br>•" | remove_first: "<br>" }}</span>
+                    <div style="width: 120px; height: 6px; background: #e5e5e5; border-radius: 3px; overflow: hidden; margin-top: 8px; margin-bottom: 2px;">
+                        <div style="width: {{ percentage }}%; height: 100%; background-color: #779d93;"></div>
+                    </div>
+                    <div style="font-size: 7pt; color: #aaa; display: flex; justify-content: space-between; width: 120px;"><span>0</span><span>5</span><span>10</span></div>
+                    <div style="font-size: 8pt; margin-top: 6px; color: #666;">📊 Bewertet Trennung, Nachvollziehbarkeit und Nachweise im Gutachten.</div>
+                </div>
+
+                <!-- 3. Fachlicher Inhalt -->
+                {% assign score = Fachlicher_Inhalt_Score | plus: 0 %}
+                {% assign percentage = score | times: 10 %}
+                <div class="info-box" style="margin-top: 16px;">
+                    <strong class="info-box-title">
+                        <img src="https://cdn-icons-png.flaticon.com/128/2822/2822526.png" alt="Fachlicher Inhalt Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                        Fachlicher Inhalt
+                    </strong>
+                    <span class="bullet-text">{{ Fachlicher_Inhalt | replace: "•", "<br>•" | remove_first: "<br>" }}</span>
+                    <div style="width: 120px; height: 6px; background: #e5e5e5; border-radius: 3px; overflow: hidden; margin-top: 8px; margin-bottom: 2px;">
+                        <div style="width: {{ percentage }}%; height: 100%; background-color: #779d93;"></div>
+                    </div>
+                    <div style="font-size: 7pt; color: #aaa; display: flex; justify-content: space-between; width: 120px;"><span>0</span><span>5</span><span>10</span></div>
+                    <div style="font-size: 8pt; margin-top: 6px; color: #666;">📊 Bewertet fachliche Korrektheit und Argumentationslogik.</div>
+                </div>
+
+                <!-- 4. Bodenwertermittlung -->
+                {% assign score = Bodenwertermittlung_Score | plus: 0 %}
+                {% assign percentage = score | times: 10 %}
+                <div class="info-box" style="margin-top: 16px;">
+                    <strong class="info-box-title">
+                        <img src="https://cdn-icons-png.flaticon.com/128/7192/7192499.png" alt="Bodenwert Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                        Bodenwertermittlung
+                    </strong>
+                    <span class="bullet-text">{{ Bodenwertermittlung | replace: "•", "<br>•" | remove_first: "<br>" }}</span>
+                    <div style="width: 120px; height: 6px; background: #e5e5e5; border-radius: 3px; overflow: hidden; margin-top: 8px; margin-bottom: 2px;">
+                        <div style="width: {{ percentage }}%; height: 100%; background-color: #779d93;"></div>
+                    </div>
+                    <div style="font-size: 7pt; color: #aaa; display: flex; justify-content: space-between; width: 120px;"><span>0</span><span>5</span><span>10</span></div>
+                    <div style="font-size: 8pt; margin-top: 6px; color: #666;">📊 Bewertet Ableitung, Quellen und Plausibilität des Bodenwerts.</div>
+                </div>
+
+                <!-- 5. Ertragswertberechnung -->
+                {% assign score = Ertragswertberechnung_Score | plus: 0 %}
+                {% assign percentage = score | times: 10 %}
+                <div class="info-box" style="margin-top: 16px;">
+                    <strong class="info-box-title">
+                        <img src="https://cdn-icons-png.flaticon.com/128/2285/2285559.png" alt="Ertragswert Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                        Ertragswertberechnung
+                    </strong>
+                    <span class="bullet-text">{{ Ertragswertberechnung | replace: "•", "<br>•" | remove_first: "<br>" }}</span>
+                    <div style="width: 120px; height: 6px; background: #e5e5e5; border-radius: 3px; overflow: hidden; margin-top: 8px; margin-bottom: 2px;">
+                        <div style="width: {{ percentage }}%; height: 100%; background-color: #779d93;"></div>
+                    </div>
+                    <div style="font-size: 7pt; color: #aaa; display: flex; justify-content: space-between; width: 120px;"><span>0</span><span>5</span><span>10</span></div>
+                    <div style="font-size: 8pt; margin-top: 6px; color: #666;">📊 Bewertet die Nachvollziehbarkeit und Vollständigkeit der Ertragswertansätze.</div>
+                </div>
+
+                <!-- 6. Sachwertberechnung -->
+                {% assign score = Sachwertberechnung_Score | plus: 0 %}
+                {% assign percentage = score | times: 10 %}
+                <div class="info-box" style="margin-top: 16px;">
+                    <strong class="info-box-title">
+                        <img src="https://cdn-icons-png.flaticon.com/128/25/25694.png" alt="Sachwert Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                        Sachwertberechnung
+                    </strong>
+                    <span class="bullet-text">{{ Sachwertberechnung | replace: "•", "<br>•" | remove_first: "<br>" }}</span>
+                    <div style="width: 120px; height: 6px; background: #e5e5e5; border-radius: 3px; overflow: hidden; margin-top: 8px; margin-bottom: 2px;">
+                        <div style="width: {{ percentage }}%; height: 100%; background-color: #779d93;"></div>
+                    </div>
+                    <div style="font-size: 7pt; color: #aaa; display: flex; justify-content: space-between; width: 120px;"><span>0</span><span>5</span><span>10</span></div>
+                    <div style="font-size: 8pt; margin-top: 6px; color: #666;">📊 Bewertet Methodik und Nachvollziehbarkeit der Sachwertermittlung.</div>
+                </div>
+
+                <!-- 7. Vergleichswertberechnung -->
+                {% assign score = Vergleichswertberechnung_Score | plus: 0 %}
+                {% assign percentage = score | times: 10 %}
+                <div class="info-box" style="margin-top: 16px;">
+                    <strong class="info-box-title">
+                        <img src="https://cdn-icons-png.flaticon.com/128/768/768869.png" alt="Vergleichswert Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                        Vergleichswertberechnung
+                    </strong>
+                    <span class="bullet-text">{{ Vergleichswertberechnung | replace: "•", "<br>•" | remove_first: "<br>" }}</span>
+                    <div style="width: 120px; height: 6px; background: #e5e5e5; border-radius: 3px; overflow: hidden; margin-top: 8px; margin-bottom: 2px;">
+                        <div style="width: {{ percentage }}%; height: 100%; background-color: #779d93;"></div>
+                    </div>
+                    <div style="font-size: 7pt; color: #aaa; display: flex; justify-content: space-between; width: 120px;"><span>0</span><span>5</span><span>10</span></div>
+                    <div style="font-size: 8pt; margin-top: 6px; color: #666;">📊 Bewertet Marktbezug und Plausibilität der Vergleichswertdaten.</div>
+                </div>
+
+                <!-- Zusammenfassung -->
+                <div class="section" style="break-inside: avoid; page-break-inside: avoid; display: inline-block; width: 100%;">
+                    <h2>2. Zusammenfassung</h2>
+
+                    <!-- Gesamtbewertung -->
+                    {% assign score = Zusammenfassung_Score | plus: 0 %}
+
+                    {% assign barClass = "matching-rot" %}
+                    {% if score >= 80 %}
+                    {% assign barClass = "matching-gruen" %}
+                    {% elsif score >= 60 %}
+                    {% assign barClass = "matching-gelb" %}
+                    {% endif %}
+
+                    <div class="info-box" style="margin-top: 16px;">
+                        <strong class="info-box-title" style="margin-bottom: 0px;">
+                            <img src="https://cdn-icons-png.flaticon.com/512/1545/1545289.png" alt="Gesamtbewertung Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                            Gesamtbewertung
+                        </strong>
+
+                        <span class="bullet-text" style="margin-top: 0px;">
+                            {{ Zusammenfassung | replace: "•", "<br>•" | remove_first: "<br>" }}
+                        </span>
+
+                        <div class="matching-balken-container">
+                            <div class="matching-balken {{ barClass }}" style="width: {{ score }}%;"></div>
+                        </div>
+
+                        <div style="font-size: 8pt; margin-top: 6px; color: #666;">
+                            🧮 Die Gesamtbewertung berücksichtigt alle fachlichen und persönlichen Einzelbewertungen im Kontext der Stellenanforderungen.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vergleich mit anderen geprüften Gutachten (Einzelblock) -->
+                <div class="info-box" style="margin-top: 16px;">
+                    <strong class="info-box-title">
+                        <img src="https://cdn-icons-png.flaticon.com/128/2893/2893811.png" alt="Vergleich Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                        Vergleich mit anderen geprüften Gutachten
+                    </strong>
+
+                    <div style="font-size: 9pt; margin-bottom: 10px;">
+                        Ihr Gutachten wurde im Vergleich zu <strong>{{Anzahl_Berichte}} anderen Prüfberichten</strong> bewertet.
+                    </div>
+
+                    {% assign max_score = 10 %}
+                    {% assign user_score = Zusammenfassung_Score | plus: 0 %}
+                    {% assign average_score = Zusammenfassung_Score_Durchschnitt | plus: 0 %}
+                    {% assign user_position = user_score | times: 100 | divided_by: max_score %}
+                    {% assign average_position = average_score | times: 100 | divided_by: max_score %}
+
+                    <div style="width: 100%; max-width: 260px; height: 6px; background: #e5e5e5; border-radius: 3px; overflow: hidden; margin-bottom: 6px; position: relative;">
+                        {% if user_score > average_score %}
+                        <div style="width: calc({{ user_position }}%); height: 100%; background-color: #779d93;"></div>
+                        {% elsif user_score < average_score %}
+                        <div style="width: calc({{ user_position }}%); height: 100%; background-color: #FFD966; float: left;"></div>
+                        <div style="width: calc({{ average_position | minus: user_position }}%); height: 100%; background-color: #e5e5e5; float: left;"></div>
+                        {% else %}
+                        <div style="width: calc({{ user_position }}%); height: 100%; background-color: #e5e5e5;"></div>
+                        {% endif %}
+                        <div style="position: absolute; left: calc({{ average_position }}% - 1px); top: -2px; width: 2px; height: 10px; background: #444;"></div>
+                    </div>
+
+                    <div style="font-size: 7pt; color: #aaa; display: flex; justify-content: space-between; width: 260px;">
+                        <span>Unterdurchschnittlich</span><span>Durchschnitt</span><span>Überdurchschnittlich</span>
+                    </div>
+
+                    <div style="font-size: 8pt; color: #444; margin-top: 8px;">
+                        Ihr erreichter Score: <strong>{{Zusammenfassung_Score}}</strong> – Durchschnitt: <strong>{{Zusammenfassung_Score_Durchschnitt}}</strong>
+                    </div>
+
+                    <div style="font-size: 8.5pt; margin-top: 12px;">
+                        <strong>Platzierung:</strong> Ihr Gutachten liegt auf Platz <strong>{{Platzierung}} von {{Anzahl_Gutachten}}</strong>.
+                    </div>
+                </div>
+
+                <!-- Vergleichstabelle -->
+                <div class="info-box" style="margin-top: 16px;">
+                    <strong class="info-box-title">
+                        <img src="https://cdn-icons-png.flaticon.com/128/4623/4623609.png" alt="Tabelle Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                        Bewertungsvergleich nach Prüfkriterien
+                    </strong>
+
+                    <div style="margin-top: 8px;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt;">
+                            <tr style="background: #e0e0e0;">
+                                <th style="text-align: left; padding: 6px;">Kriterium</th>
+                                <th style="text-align: center; padding: 6px;">Ihr Gutachten</th>
+                                <th style="text-align: center; padding: 6px;">Durchschnitt</th>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px;">Formaler Aufbau</td>
+                                <td style="text-align: center;">{{Formaler_Aufbau_Score}}</td>
+                                <td style="text-align: center;">{{Formaler_Aufbau_Score_Durchschnitt}}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px;">Darstellung der Befund- und Anknüpfungstatsachen</td>
+                                <td style="text-align: center;">{{Darstellung_Befund_Score}}</td>
+                                <td style="text-align: center;">{{Darstellung_Befund_Score_Durchschnitt}}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px;">Fachlicher Inhalt</td>
+                                <td style="text-align: center;">{{Fachlicher_Inhalt_Score}}</td>
+                                <td style="text-align: center;">{{Fachlicher_Inhalt_Score_Durchschnitt}}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px;">Bodenwertermittlung</td>
+                                <td style="text-align: center;">{{Bodenwertermittlung_Score}}</td>
+                                <td style="text-align: center;">{{Bodenwertermittlung_Score_Durchschnitt}}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px;">Ertragswertberechnung</td>
+                                <td style="text-align: center;">{{Ertragswertberechnung_Score}}</td>
+                                <td style="text-align: center;">{{Ertragswertberechnung_Score_Durchschnitt}}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px;">Sachwertberechnung</td>
+                                <td style="text-align: center;">{{Sachwertberechnung_Score}}</td>
+                                <td style="text-align: center;">{{Sachwertberechnung_Score_Durchschnitt}}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px;">Vergleichswertberechnung</td>
+                                <td style="text-align: center;">{{Vergleichswertberechnung_Score}}</td>
+                                <td style="text-align: center;">{{Vergleichswertberechnung_Score_Durchschnitt}}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px;"><strong>Gesamtergebnis</strong></td>
+                                <td style="text-align: center;"><strong>{{Zusammenfassung_Score}}</strong></td>
+                                <td style="text-align: center;"><strong>{{Zusammenfassung_Score_Durchschnitt}}</strong></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Radarvergleich (Diagramm) -->
+                <div class="info-box" style="margin-top: 16px;">
+                    <strong class="info-box-title">
+                        <img src="https://cdn-icons-png.flaticon.com/128/502/502960.png" alt="Radar Icon" style="vertical-align: middle; margin-right: 5px; width: 16px; height: 16px;">
+                        Radarvergleich mit anderen geprüften Gutachten
+                    </strong>
+
+                    <p style="font-size: 9pt; margin-bottom: 14px;">
+                        Das folgende Diagramm stellt Ihr Gutachten den durchschnittlichen Ergebnissen gegenüber.
+                    </p>
+
+                    <div style="text-align: center;">
+                        <img src="https://quickchart.io/chart?width=320&height=320&c={type:'radar',data:{labels:['Formaler Aufbau','Befund','Fachlicher Inhalt','Bodenwert','Ertragswert','Sachwert','Vergleichswert'],datasets:[{label:'Ihr Gutachten',data:[{{Formaler_Aufbau_Score}},{{Darstellung_Befund_Score}},{{Fachlicher_Inhalt_Score}},{{Bodenwertermittlung_Score}},{{Ertragswertberechnung_Score}},{{Sachwertberechnung_Score}},{{Vergleichswertberechnung_Score}}],backgroundColor:'rgba(255,99,132,0.4)',borderColor:'rgba(255,99,132,1)',pointBackgroundColor:'rgba(255,99,132,1)'},{label:'Durchschnitt',data:[{{Formaler_Aufbau_Score_Durchschnitt}},{{Darstellung_Befund_Score_Durchschnitt}},{{Fachlicher_Inhalt_Score_Durchschnitt}},{{Bodenwertermittlung_Score_Durchschnitt}},{{Ertragswertberechnung_Score_Durchschnitt}},{{Sachwertberechnung_Score_Durchschnitt}},{{Vergleichswertberechnung_Score_Durchschnitt}}],backgroundColor:'rgba(119,157,147,0.3)',borderColor:'rgba(119,157,147,1)',pointBackgroundColor:'rgba(119,157,147,1)'}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:9}}}},scale:{ticks:{beginAtZero:true,max:10}}}}" alt="Radarvergleich: Ihr Gutachten vs. Durchschnitt" style="max-width: 320px; width: 100%;">
+                    </div>
+                </div>
+
+
+                <!-- Footer-Hinweis -->
+                <div class="hinweis1">💡 Dieser Bericht wurde mithilfe Künstlicher Intelligenz (KI) erstellt. Eine finale abschließende Bewertung bedarf weiterhin einer Prüfung durch einen qualifizierten Fachprüfer.</div>
+
+            </div>
+        </div>
+</body>
+
+</html>

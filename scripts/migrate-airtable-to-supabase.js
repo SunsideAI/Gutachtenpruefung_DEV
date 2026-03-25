@@ -279,6 +279,18 @@ async function main() {
     return;
   }
 
+  // Debug: Show all field names from first record
+  if (atRecords.length > 0) {
+    const fields = Object.keys(atRecords[0].fields);
+    console.log(`\n--- Airtable Field Names (${fields.length} fields) ---`);
+    fields.forEach(f => {
+      const val = atRecords[0].fields[f];
+      const preview = typeof val === 'string' ? val.substring(0, 50) : JSON.stringify(val)?.substring(0, 50);
+      console.log(`  "${f}" → ${preview}`);
+    });
+    console.log('');
+  }
+
   // 2. Transform records
   const rows = atRecords.map(transformRecord);
 

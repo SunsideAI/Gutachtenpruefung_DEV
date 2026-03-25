@@ -138,7 +138,9 @@ app.post('/webhook/fillout', (req, res) => {
     vorname: fields['Vorname'] || '',
     nachname: fields['Nachname'] || '',
     email: fields['E-Mail'] || fields['Email'] || '',
-    unternehmensname: fields['Unternehmensname'] || fields['Unternehmen'] || '',
+    unternehmensname: fields['Unternehmensname'] || fields['Unternehmen']
+      || [fields['Vorname'], fields['Nachname']].filter(Boolean).join(' ')
+      || 'Unbekannt',
     adresse: {
       strasse: fields['Straße'] || fields['Adresse'] || '',
       stadt: fields['Stadt'] || fields['City'] || '',

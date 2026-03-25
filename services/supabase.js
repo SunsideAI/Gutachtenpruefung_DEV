@@ -107,6 +107,52 @@ async function upsertRanking(rankings) {
   if (error) throw new Error(`Supabase ranking upsert failed: ${error.message}`);
 }
 
+const STORAGE_BUCKET = 'gutachten-pdfs';
+
+/**
+ * Ensure storage bucket exists
+ */
+async function ensureBucket() {
+  const client = getClient();
+  const { data: buckets } = await client.storage.listBuckets();
+  if (!buckets?.some(b => b.name === STORAGE_BUCKET)) {
+    const { error } = await client.storage.createBucket(STORAGE_BUCKET, { public: false });
+    if (error) throw new Error(`Bucket creation failed: ${error.message}`);
+  }
+}
+
+/**
+ * Upload a PDF to Supabase Storage
+ * @param {Buffer} buffer - PDF content
+ * @param {string} storagePath - Path within bucket (e.g. "gutachten/abc123/file.pdf")
+ * @returns {string} Public URL of the uploaded file
+ */
+async function uploadPdf(buffer, storagePath) {
+  const client = getClient();
+  await ensureBucket();
+
+  const { error } = await client.storage
+    .from(STORAGE_BUCKET)
+    .upload(storagePath, buffer, {
+      contentType: 'application/pdf',
+      upsert: true
+    });
+
+  if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+  // Generate a signed URL (valid for 10 years — effectively permanent for reports)
+  const { data: signedData, error: signError } = await client.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(storagePath, 60 * 60 * 24 * 365 * 10);
+
+  if (signError) {
+    // Fallback: return the path reference
+    return `${STORAGE_BUCKET}/${storagePath}`;
+  }
+
+  return signedData.signedUrl;
+}
+
 module.exports = {
   getClient,
   createGutachten,
@@ -114,5 +160,6 @@ module.exports = {
   setStatus,
   getGutachtenByAG,
   getAllAGAverages,
-  upsertRanking
+  upsertRanking,
+  uploadPdf
 };

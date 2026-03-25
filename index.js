@@ -78,15 +78,23 @@ app.post('/webhook/fillout', (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // Log incoming fields for debugging
+  console.log('[webhook] Received fields:', Object.keys(body).join(', '));
+
   // Validate payment status (skip check if no payment field — e.g. test submissions)
   if (body.status && body.status !== 'succeeded') {
     return res.status(400).json({ error: 'Payment not succeeded', status: body.status });
   }
 
-  // Validate required fields
-  const pdfUrl = body['Gof 6 Url'];
+  // Find PDF URL (try known field names)
+  const pdfUrl = body['Gof 6 Url'] || body['pdf_url'] || body['file_url'];
   if (!pdfUrl) {
-    return res.status(400).json({ error: 'No PDF URL provided (Gof 6 Url)' });
+    // Return all field names to help debug field mapping
+    return res.status(400).json({
+      error: 'No PDF URL found',
+      received_fields: Object.keys(body),
+      hint: 'Check which field contains the PDF URL and update the mapping'
+    });
   }
 
   const submissionId = body['Submission Id'];

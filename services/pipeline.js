@@ -1,9 +1,8 @@
 const Anthropic = require('@anthropic-ai/sdk');
-const { downloadPdf, downloadPdfBuffer } = require('../utils/pdf-download');
+const { downloadPdf } = require('../utils/pdf-download');
 const { runEvaluation } = require('./claude');
 const { calculateGesamtscore, calculateAverages, calculateRankings } = require('../utils/scores');
 const supabase = require('./supabase');
-const googleDrive = require('./google-drive');
 const pdfmonkey = require('./pdfmonkey');
 const mailer = require('./mailer');
 
@@ -140,19 +139,14 @@ async function processGutachten(payload) {
     const pdfBuffer = Buffer.from(pdfBase64, 'base64');
     console.log(`${logPrefix} PDF downloaded (${Math.round(pdfBuffer.length / 1024)} KB)`);
 
-    // 5. Upload original PDF to Google Drive (Eingang)
-    let gutachtenDriveLink = null;
+    // 5. Upload original PDF to Supabase Storage
+    let gutachtenStorageUrl = null;
     try {
-      const driveResult = await googleDrive.uploadFile(
-        pdfBuffer,
-        payload.pdf_filename,
-        process.env.GOOGLE_DRIVE_FOLDER_EINGANG,
-        'application/pdf'
-      );
-      gutachtenDriveLink = driveResult.webViewLink;
-      console.log(`${logPrefix} Original PDF uploaded to Drive`);
+      const storagePath = `gutachten/${gutachtenId}/${payload.pdf_filename}`;
+      gutachtenStorageUrl = await supabase.uploadPdf(pdfBuffer, storagePath);
+      console.log(`${logPrefix} Original PDF uploaded to Supabase Storage`);
     } catch (err) {
-      console.error(`${logPrefix} Google Drive upload failed (non-fatal):`, err.message);
+      console.error(`${logPrefix} Storage upload failed (non-fatal):`, err.message);
     }
 
     // 6. Run 13-step Claude evaluation + TEXTPRUEFUNG
@@ -173,7 +167,7 @@ async function processGutachten(payload) {
     await supabase.updateGutachten(gutachtenId, {
       ...mapResultToSupabaseFields(result),
       gesamtscore,
-      gutachten_drive_link: gutachtenDriveLink,
+      pdf_url: gutachtenStorageUrl || payload.pdf_url,
       processing_errors: errors.length > 0 ? errors : null,
       processing_time_seconds: parseFloat(processingTime),
       status: 'Geprüft'
@@ -212,7 +206,7 @@ async function processGutachten(payload) {
     }
 
     // 11. Generate PDF report via PDFMonkey
-    let reportDriveLink = null;
+    let reportStorageUrl = null;
     try {
       const reportPayload = buildPdfMonkeyPayload(result, gesamtscore, averages, platzierung, payload);
       console.log(`${logPrefix} Generating PDF report...`);
@@ -221,18 +215,13 @@ async function processGutachten(payload) {
       const reportBuffer = await pdfmonkey.downloadDocument(download_url);
       console.log(`${logPrefix} PDF report generated`);
 
-      // 12. Upload report to Google Drive (Berichte)
-      const reportDrive = await googleDrive.uploadFile(
-        reportBuffer,
-        `Prüfbericht_${payload.pdf_filename}`,
-        process.env.GOOGLE_DRIVE_FOLDER_BERICHTE,
-        'application/pdf'
-      );
-      reportDriveLink = reportDrive.webViewLink;
-      console.log(`${logPrefix} Report uploaded to Drive`);
+      // 12. Upload report to Supabase Storage
+      const reportPath = `berichte/${gutachtenId}/Pruefbericht_${payload.pdf_filename}`;
+      reportStorageUrl = await supabase.uploadPdf(reportBuffer, reportPath);
+      console.log(`${logPrefix} Report uploaded to Supabase Storage`);
 
       await supabase.updateGutachten(gutachtenId, {
-        pruefbericht_drive_link: reportDriveLink
+        pruefbericht_drive_link: reportStorageUrl
       });
     } catch (err) {
       console.error(`${logPrefix} PDF report generation/upload failed (non-fatal):`, err.message);
@@ -246,7 +235,7 @@ async function processGutachten(payload) {
         payload.pdf_filename,
         result.Zusammenfassung,
         gesamtscore,
-        reportDriveLink
+        reportStorageUrl
       );
     } catch (err) {
       console.error(`${logPrefix} Result email failed (non-fatal):`, err.message);

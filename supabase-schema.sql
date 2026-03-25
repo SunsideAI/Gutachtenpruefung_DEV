@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS gutachten (
   -- Ranking
   platzierung INTEGER,
 
-  -- Google Drive Links
+  -- Storage Links (Supabase Storage)
   gutachten_drive_link TEXT,
   pruefbericht_drive_link TEXT,
 

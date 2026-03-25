@@ -11,7 +11,7 @@ function getClient() {
   return resendClient;
 }
 
-const FROM = process.env.EMAIL_FROM || 'Sunside AI Gutachtenprüfung <pruefung@sunside-ai.de>';
+const FROM = process.env.EMAIL_FROM || 'Sunside AI Gutachtenprüfung <pruefung@sunsideai.de>';
 
 /**
  * Send confirmation email that the Gutachten is being processed

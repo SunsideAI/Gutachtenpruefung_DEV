@@ -78,8 +78,9 @@ app.post('/webhook/fillout', (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // Log incoming fields for debugging
+  // Log incoming payload for debugging
   console.log('[webhook] Received fields:', Object.keys(body).join(', '));
+  console.log('[webhook] Body:', JSON.stringify(body, null, 2).substring(0, 3000));
 
   // Validate payment status (skip check if no payment field — e.g. test submissions)
   if (body.status && body.status !== 'succeeded') {

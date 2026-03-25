@@ -13,7 +13,7 @@ function getClient() {
 
 const FROM = process.env.EMAIL_FROM || 'Sunside AI Gutachtenprüfung <pruefung@sunsideai.de>';
 const BCC = 'contact@sunsideai.de';
-const INTERNAL_TO = ['niklas@sunsideai.de', 'paul@sunsideai.de'];
+const INTERNAL_TO = 'contact@sunsideai.de';
 
 const SIGNATURE = `
     <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 14px; color: #333; text-align: center;">

@@ -109,9 +109,7 @@ async function ensureBucket(supabase) {
   if (!exists) {
     console.log(`[supabase] Creating bucket "${SUPABASE_BUCKET}"...`);
     const { error } = await supabase.storage.createBucket(SUPABASE_BUCKET, {
-      public: false,
-      fileSizeLimit: 104857600, // 100MB
-      allowedMimeTypes: ['application/pdf']
+      public: false
     });
     if (error) throw new Error(`Bucket creation failed: ${error.message}`);
     console.log(`[supabase] Bucket created.`);

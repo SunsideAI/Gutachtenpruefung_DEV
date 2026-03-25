@@ -211,11 +211,16 @@ async function processGutachten(payload) {
     // 2. Set status to "Wird geprüft"
     await supabase.setStatus(gutachtenId, 'Wird geprüft');
 
-    // 3. Send confirmation email
+    // 3. Send confirmation email + internal notification
     try {
       await mailer.sendConfirmation(payload.email, payload.vorname, payload.pdf_filename);
     } catch (err) {
       console.error(`${logPrefix} Confirmation email failed (non-fatal):`, err.message);
+    }
+    try {
+      await mailer.sendInternalNotification(payload.pdf_filename, payload.vorname, payload.nachname);
+    } catch (err) {
+      console.error(`${logPrefix} Internal notification failed (non-fatal):`, err.message);
     }
 
     // 4. Download PDF

@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS gutachten (
   -- PDF Info
   pdf_url TEXT,
   pdf_filename TEXT,
+  pdf_hash TEXT,
 
   -- Payment Info
   stripe_payment_id TEXT,

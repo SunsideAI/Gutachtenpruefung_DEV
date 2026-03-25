@@ -1,31 +1,24 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-let transporter = null;
+let resendClient = null;
 
-function getTransporter() {
-  if (transporter) return transporter;
-
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
-  });
-
-  return transporter;
+function getClient() {
+  if (resendClient) return resendClient;
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY is required');
+  }
+  resendClient = new Resend(process.env.RESEND_API_KEY);
+  return resendClient;
 }
+
+const FROM = process.env.EMAIL_FROM || 'Sunside AI Gutachtenprüfung <pruefung@sunside-ai.de>';
 
 /**
  * Send confirmation email that the Gutachten is being processed
  */
 async function sendConfirmation(to, vorname, dateiname) {
-  const transport = getTransporter();
-
-  await transport.sendMail({
-    from: process.env.SMTP_FROM || 'Sunside AI Gutachtenprüfung <pruefung@sunside-ai.de>',
+  const { error } = await getClient().emails.send({
+    from: FROM,
     to,
     subject: `Ihr Gutachten wird geprüft – ${dateiname}`,
     html: `
@@ -40,6 +33,7 @@ async function sendConfirmation(to, vorname, dateiname) {
     `
   });
 
+  if (error) throw new Error(`Resend error: ${error.message}`);
   console.log(`[mailer] Confirmation sent to ${to}`);
 }
 
@@ -47,12 +41,10 @@ async function sendConfirmation(to, vorname, dateiname) {
  * Send result email with evaluation summary and report link
  */
 async function sendResult(to, vorname, dateiname, zusammenfassung, gesamtscore, reportUrl) {
-  const transport = getTransporter();
-
   const scoreDisplay = gesamtscore !== null ? `${gesamtscore}/10` : 'n/a';
 
-  await transport.sendMail({
-    from: process.env.SMTP_FROM || 'Sunside AI Gutachtenprüfung <pruefung@sunside-ai.de>',
+  const { error } = await getClient().emails.send({
+    from: FROM,
     to,
     subject: `Prüfergebnis – ${dateiname} – ${scoreDisplay}`,
     html: `
@@ -77,6 +69,7 @@ async function sendResult(to, vorname, dateiname, zusammenfassung, gesamtscore, 
     `
   });
 
+  if (error) throw new Error(`Resend error: ${error.message}`);
   console.log(`[mailer] Result sent to ${to} (score: ${scoreDisplay})`);
 }
 

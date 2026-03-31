@@ -203,9 +203,15 @@ async function processGutachten(payload) {
   try {
     console.log(`${logPrefix} Starting processing: ${payload.pdf_filename}`);
 
-    // 1. Create Supabase record
+    // 1. Create Supabase record (or get existing if duplicate submission)
     const record = await supabase.createGutachten(payload);
     gutachtenId = record.id;
+
+    if (record._duplicate) {
+      console.log(`${logPrefix} Duplicate submission — already processed as ${gutachtenId}. Skipping.`);
+      return;
+    }
+
     console.log(`${logPrefix} Supabase record created: ${gutachtenId}`);
 
     // 2. Set status to "Wird geprüft"

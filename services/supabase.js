@@ -33,7 +33,21 @@ async function createGutachten(data) {
     .select()
     .single();
 
-  if (error) throw new Error(`Supabase insert failed: ${error.message}`);
+  if (error) {
+    // Handle duplicate submission — return existing record
+    if (error.code === '23505') {
+      const { data: existing } = await getClient()
+        .from('gutachten')
+        .select('*')
+        .eq('fillout_submission_id', data.fillout_submission_id)
+        .single();
+      if (existing) {
+        existing._duplicate = true;
+        return existing;
+      }
+    }
+    throw new Error(`Supabase insert failed: ${error.message}`);
+  }
   return record;
 }
 

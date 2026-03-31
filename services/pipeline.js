@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const Anthropic = require('@anthropic-ai/sdk');
 const { downloadPdf } = require('../utils/pdf-download');
 const { runEvaluation } = require('./claude');
@@ -118,6 +119,80 @@ function buildPdfMonkeyPayload(result, gesamtscore, agAverages, platzierung, pay
 }
 
 /**
+ * Finish pipeline: ranking, report generation, email (shared by normal + duplicate paths)
+ */
+async function finishPipeline(logPrefix, gutachtenId, result, gesamtscore, payload, startTime) {
+  // Calculate AG averages
+  const agRecords = await supabase.getGutachtenByAG(payload.unternehmensname);
+  const averages = calculateAverages(agRecords);
+  console.log(`${logPrefix} AG averages calculated (${agRecords.length} records)`);
+
+  // Calculate rankings across all AGs
+  let platzierung = null;
+  try {
+    const allRecords = await supabase.getAllAGAverages();
+    const agGroups = {};
+    for (const rec of allRecords) {
+      const key = rec.unternehmensname;
+      if (!agGroups[key]) {
+        agGroups[key] = { unternehmensname: key, vorname: rec.vorname, nachname: rec.nachname, email: rec.email, records: [] };
+      }
+      agGroups[key].records.push(rec);
+    }
+    const agAveragesList = Object.values(agGroups).map(ag => {
+      const { records, ...agInfo } = ag;
+      return { ...agInfo, ...calculateAverages(records) };
+    });
+    const rankings = calculateRankings(agAveragesList);
+    await supabase.upsertRanking(rankings);
+    platzierung = rankings.find(r => r.unternehmensname === payload.unternehmensname)?.platzierung || null;
+    console.log(`${logPrefix} Rankings updated. Platzierung: ${platzierung}`);
+  } catch (err) {
+    console.error(`${logPrefix} Ranking calculation failed (non-fatal):`, err.message);
+  }
+
+  // Generate PDF report via PDFMonkey
+  let reportStorageUrl = null;
+  try {
+    const reportPayload = buildPdfMonkeyPayload(result, gesamtscore, averages, platzierung, payload);
+    console.log(`${logPrefix} Generating PDF report...`);
+    const docId = await pdfmonkey.generateDocument(process.env.PDFMONKEY_TEMPLATE_ID, reportPayload);
+    const { download_url } = await pdfmonkey.waitForDocument(docId);
+    const reportBuffer = await pdfmonkey.downloadDocument(download_url);
+    console.log(`${logPrefix} PDF report generated`);
+
+    const reportPath = `berichte/${gutachtenId}/Pruefbericht_${payload.pdf_filename}`;
+    reportStorageUrl = await supabase.uploadPdf(reportBuffer, reportPath);
+    console.log(`${logPrefix} Report uploaded to Supabase Storage`);
+
+    await supabase.updateGutachten(gutachtenId, {
+      pruefbericht_drive_link: reportStorageUrl
+    });
+  } catch (err) {
+    console.error(`${logPrefix} PDF report generation/upload failed (non-fatal):`, err.message);
+  }
+
+  // Send result email
+  try {
+    await mailer.sendResult(
+      payload.email,
+      payload.vorname,
+      payload.pdf_filename,
+      result.Zusammenfassung,
+      gesamtscore,
+      reportStorageUrl
+    );
+  } catch (err) {
+    console.error(`${logPrefix} Result email failed (non-fatal):`, err.message);
+  }
+
+  // Set final status
+  await supabase.setStatus(gutachtenId, 'Abgeschlossen');
+  const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(`${logPrefix} Pipeline complete in ${totalTime}s`);
+}
+
+/**
  * Main pipeline: processes a single Gutachten end-to-end
  */
 async function processGutachten(payload) {
@@ -136,11 +211,16 @@ async function processGutachten(payload) {
     // 2. Set status to "Wird geprüft"
     await supabase.setStatus(gutachtenId, 'Wird geprüft');
 
-    // 3. Send confirmation email
+    // 3. Send confirmation email + internal notification
     try {
       await mailer.sendConfirmation(payload.email, payload.vorname, payload.pdf_filename);
     } catch (err) {
       console.error(`${logPrefix} Confirmation email failed (non-fatal):`, err.message);
+    }
+    try {
+      await mailer.sendInternalNotification(payload.pdf_filename, payload.vorname, payload.nachname);
+    } catch (err) {
+      console.error(`${logPrefix} Internal notification failed (non-fatal):`, err.message);
     }
 
     // 4. Download PDF
@@ -149,7 +229,97 @@ async function processGutachten(payload) {
     const pdfBuffer = Buffer.from(pdfBase64, 'base64');
     console.log(`${logPrefix} PDF downloaded (${Math.round(pdfBuffer.length / 1024)} KB)`);
 
-    // 5. Upload original PDF to Supabase Storage
+    // 5. Calculate PDF hash for duplicate detection
+    const pdfHash = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
+    console.log(`${logPrefix} PDF hash: ${pdfHash.slice(0, 12)}...`);
+
+    // 5a. Check for duplicate — same PDF already evaluated?
+    const existingRecord = await supabase.findByPdfHash(pdfHash);
+    if (existingRecord) {
+      console.log(`${logPrefix} DUPLICATE DETECTED — reusing results from record ${existingRecord.id}`);
+
+      // Copy evaluation results from existing record
+      const copyFields = [
+        'objektbeschreibung',
+        'formalia_erfuellt', 'formalia_kommentar', 'recht_erfuellt', 'recht_kommentar',
+        'lage_erfuellt', 'lage_kommentar', 'baurecht_erfuellt', 'baurecht_kommentar',
+        'boden_erfuellt', 'boden_kommentar', 'nutzung_erfuellt', 'nutzung_kommentar',
+        'gebaeude_erfuellt', 'gebaeude_kommentar', 'verfahren_erfuellt', 'verfahren_kommentar',
+        'merkmale_erfuellt', 'merkmale_kommentar', 'plausi_erfuellt', 'plausi_kommentar',
+        'formaler_aufbau', 'formaler_aufbau_score',
+        'darstellung_befund', 'darstellung_befund_score',
+        'fachlicher_inhalt', 'fachlicher_inhalt_score',
+        'bodenwertermittlung', 'bodenwertermittlung_score',
+        'ertragswertberechnung', 'ertragswertberechnung_score',
+        'sachwertberechnung', 'sachwertberechnung_score',
+        'vergleichswertberechnung', 'vergleichswertberechnung_score',
+        'zusammenfassung', 'zusammenfassung_score', 'gesamtscore'
+      ];
+      const copiedFields = {};
+      for (const f of copyFields) {
+        if (existingRecord[f] !== undefined) copiedFields[f] = existingRecord[f];
+      }
+
+      await supabase.updateGutachten(gutachtenId, {
+        ...copiedFields,
+        pdf_hash: pdfHash,
+        pdf_url: payload.pdf_url,
+        processing_time_seconds: parseFloat(((Date.now() - startTime) / 1000).toFixed(1)),
+        status: 'Geprüft'
+      });
+
+      // Still generate report and send email with cached results
+      // (skip to step 9 — ranking, report, email)
+      console.log(`${logPrefix} Cached results saved. Skipping Claude evaluation.`);
+
+      // Build result object from existing record for report generation
+      const result = {
+        Objektbeschreibung: existingRecord.objektbeschreibung,
+        Formalia_Erfuellt: existingRecord.formalia_erfuellt,
+        Formalia_Kommentar: existingRecord.formalia_kommentar,
+        Recht_Erfuellt: existingRecord.recht_erfuellt,
+        Recht_Kommentar: existingRecord.recht_kommentar,
+        Lage_Erfuellt: existingRecord.lage_erfuellt,
+        Lage_Kommentar: existingRecord.lage_kommentar,
+        Baurecht_Erfuellt: existingRecord.baurecht_erfuellt,
+        Baurecht_Kommentar: existingRecord.baurecht_kommentar,
+        Boden_Erfuellt: existingRecord.boden_erfuellt,
+        Boden_Kommentar: existingRecord.boden_kommentar,
+        Nutzung_Erfuellt: existingRecord.nutzung_erfuellt,
+        Nutzung_Kommentar: existingRecord.nutzung_kommentar,
+        Gebaeude_Erfuellt: existingRecord.gebaeude_erfuellt,
+        Gebaeude_Kommentar: existingRecord.gebaeude_kommentar,
+        Verfahren_Erfuellt: existingRecord.verfahren_erfuellt,
+        Verfahren_Kommentar: existingRecord.verfahren_kommentar,
+        Merkmale_Erfuellt: existingRecord.merkmale_erfuellt,
+        Merkmale_Kommentar: existingRecord.merkmale_kommentar,
+        Plausi_Erfuellt: existingRecord.plausi_erfuellt,
+        Plausi_Kommentar: existingRecord.plausi_kommentar,
+        Formaler_Aufbau: existingRecord.formaler_aufbau,
+        Formaler_Aufbau_Score: existingRecord.formaler_aufbau_score,
+        Darstellung_Befund_und_Anknuepfungstatsachen: existingRecord.darstellung_befund,
+        Darstellung_Befund_Score: existingRecord.darstellung_befund_score,
+        Fachlicher_Inhalt: existingRecord.fachlicher_inhalt,
+        Fachlicher_Inhalt_Score: existingRecord.fachlicher_inhalt_score,
+        Bodenwertermittlung: existingRecord.bodenwertermittlung,
+        Bodenwertermittlung_Score: existingRecord.bodenwertermittlung_score,
+        Ertragswertberechnung: existingRecord.ertragswertberechnung,
+        Ertragswertberechnung_Score: existingRecord.ertragswertberechnung_score,
+        Sachwertberechnung: existingRecord.sachwertberechnung,
+        Sachwertberechnung_Score: existingRecord.sachwertberechnung_score,
+        Vergleichswertberechnung: existingRecord.vergleichswertberechnung,
+        Vergleichswertberechnung_Score: existingRecord.vergleichswertberechnung_score,
+        Zusammenfassung: existingRecord.zusammenfassung,
+        Zusammenfassung_Score: existingRecord.zusammenfassung_score,
+      };
+      const gesamtscore = existingRecord.gesamtscore;
+
+      // Jump to ranking + report + email (steps 9-14)
+      await finishPipeline(logPrefix, gutachtenId, result, gesamtscore, payload, startTime);
+      return;
+    }
+
+    // 6. Upload original PDF to Supabase Storage
     let gutachtenStorageUrl = null;
     try {
       const storagePath = `gutachten/${gutachtenId}/${payload.pdf_filename}`;
@@ -159,7 +329,7 @@ async function processGutachten(payload) {
       console.error(`${logPrefix} Storage upload failed (non-fatal):`, err.message);
     }
 
-    // 6. Run 13-step Claude evaluation + TEXTPRUEFUNG
+    // 7. Run 13-step Claude evaluation + TEXTPRUEFUNG
     console.log(`${logPrefix} Starting Claude evaluation...`);
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const { result, errors } = await runEvaluation(client, pdfBase64, {
@@ -168,15 +338,16 @@ async function processGutachten(payload) {
     });
     console.log(`${logPrefix} Evaluation complete (${errors.length} errors)`);
 
-    // 7. Calculate Gesamtscore
+    // 8. Calculate Gesamtscore
     const gesamtscore = calculateGesamtscore(result);
     console.log(`${logPrefix} Gesamtscore: ${gesamtscore}`);
 
-    // 8. Save results to Supabase
+    // 9. Save results to Supabase
     const processingTime = ((Date.now() - startTime) / 1000).toFixed(1);
     await supabase.updateGutachten(gutachtenId, {
       ...mapResultToSupabaseFields(result),
       gesamtscore,
+      pdf_hash: pdfHash,
       pdf_url: gutachtenStorageUrl || payload.pdf_url,
       processing_errors: errors.length > 0 ? errors : null,
       processing_time_seconds: parseFloat(processingTime),
@@ -184,77 +355,8 @@ async function processGutachten(payload) {
     });
     console.log(`${logPrefix} Results saved to Supabase`);
 
-    // 9. Calculate AG averages
-    const agRecords = await supabase.getGutachtenByAG(payload.unternehmensname);
-    const averages = calculateAverages(agRecords);
-    console.log(`${logPrefix} AG averages calculated (${agRecords.length} records)`);
-
-    // 10. Calculate rankings across all AGs
-    let platzierung = null;
-    try {
-      const allRecords = await supabase.getAllAGAverages();
-      // Group by unternehmensname
-      const agGroups = {};
-      for (const rec of allRecords) {
-        const key = rec.unternehmensname;
-        if (!agGroups[key]) {
-          agGroups[key] = { unternehmensname: key, vorname: rec.vorname, nachname: rec.nachname, email: rec.email, records: [] };
-        }
-        agGroups[key].records.push(rec);
-      }
-      // Calculate averages per AG
-      const agAveragesList = Object.values(agGroups).map(ag => {
-        const { records, ...agInfo } = ag;
-        return { ...agInfo, ...calculateAverages(records) };
-      });
-      const rankings = calculateRankings(agAveragesList);
-      await supabase.upsertRanking(rankings);
-      platzierung = rankings.find(r => r.unternehmensname === payload.unternehmensname)?.platzierung || null;
-      console.log(`${logPrefix} Rankings updated. AG Platzierung: ${platzierung}`);
-    } catch (err) {
-      console.error(`${logPrefix} Ranking calculation failed (non-fatal):`, err.message);
-    }
-
-    // 11. Generate PDF report via PDFMonkey
-    let reportStorageUrl = null;
-    try {
-      const reportPayload = buildPdfMonkeyPayload(result, gesamtscore, averages, platzierung, payload);
-      console.log(`${logPrefix} Generating PDF report...`);
-      const docId = await pdfmonkey.generateDocument(process.env.PDFMONKEY_TEMPLATE_ID, reportPayload);
-      const { download_url } = await pdfmonkey.waitForDocument(docId);
-      const reportBuffer = await pdfmonkey.downloadDocument(download_url);
-      console.log(`${logPrefix} PDF report generated`);
-
-      // 12. Upload report to Supabase Storage
-      const reportPath = `berichte/${gutachtenId}/Pruefbericht_${payload.pdf_filename}`;
-      reportStorageUrl = await supabase.uploadPdf(reportBuffer, reportPath);
-      console.log(`${logPrefix} Report uploaded to Supabase Storage`);
-
-      await supabase.updateGutachten(gutachtenId, {
-        pruefbericht_drive_link: reportStorageUrl
-      });
-    } catch (err) {
-      console.error(`${logPrefix} PDF report generation/upload failed (non-fatal):`, err.message);
-    }
-
-    // 13. Send result email
-    try {
-      await mailer.sendResult(
-        payload.email,
-        payload.vorname,
-        payload.pdf_filename,
-        result.Zusammenfassung,
-        gesamtscore,
-        reportStorageUrl
-      );
-    } catch (err) {
-      console.error(`${logPrefix} Result email failed (non-fatal):`, err.message);
-    }
-
-    // 14. Set final status
-    await supabase.setStatus(gutachtenId, 'Abgeschlossen');
-    const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`${logPrefix} Pipeline complete in ${totalTime}s`);
+    // 10. Finish pipeline (ranking, report, email)
+    await finishPipeline(logPrefix, gutachtenId, result, gesamtscore, payload, startTime);
 
   } catch (err) {
     console.error(`${logPrefix} Fatal error:`, err);

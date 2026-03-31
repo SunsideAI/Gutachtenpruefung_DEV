@@ -107,6 +107,23 @@ async function upsertRanking(rankings) {
   if (error) throw new Error(`Supabase ranking upsert failed: ${error.message}`);
 }
 
+/**
+ * Find an existing gutachten by PDF hash (for duplicate detection)
+ * Returns the full record if found, null otherwise
+ */
+async function findByPdfHash(pdfHash) {
+  const { data, error } = await getClient()
+    .from('gutachten')
+    .select('*')
+    .eq('pdf_hash', pdfHash)
+    .in('status', ['Geprüft', 'Abgeschlossen'])
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return data;
+}
+
 const STORAGE_BUCKET = 'gutachten-pdfs';
 
 /**
@@ -161,5 +178,6 @@ module.exports = {
   getGutachtenByAG,
   getAllAGAverages,
   upsertRanking,
-  uploadPdf
+  uploadPdf,
+  findByPdfHash
 };

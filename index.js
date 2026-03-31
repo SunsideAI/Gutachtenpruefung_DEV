@@ -171,6 +171,62 @@ app.post('/webhook/fillout', (req, res) => {
   });
 });
 
+// ── POST /webhook/gdrive (Patrick Beier — Sonderprüfung ohne Zahlung) ──
+
+app.post('/webhook/gdrive', (req, res) => {
+  const body = req.body;
+
+  // Validate secret
+  const secret = body.secret || req.query.secret;
+  if (secret !== process.env.WEBHOOK_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const fileId = body.file_id;
+  const fileName = body.file_name;
+  const fileUrl = body.file_url || `https://drive.google.com/uc?id=${fileId}&export=download`;
+
+  if (!fileId || !fileName) {
+    return res.status(400).json({ error: 'file_id and file_name are required' });
+  }
+
+  console.log(`[webhook:gdrive] New file: ${fileName} (${fileId})`);
+
+  // Patrick Beier's fixed data — Sonderprüfung without payment
+  const payload = {
+    fillout_submission_id: `gdrive_${fileId}`,
+    vorname: 'Patrick',
+    nachname: 'Beier',
+    email: process.env.BEIER_EMAIL || 'p.beier@beierundpartner.de',
+    unternehmensname: 'Sachverständigenbüro Beier & Partner',
+    adresse: {
+      strasse: 'Schölischer Str. 101a',
+      stadt: 'Stade',
+      bundesland: 'Niedersachsen',
+      plz: '21682',
+      land: 'Deutschland'
+    },
+    pdf_url: fileUrl,
+    pdf_filename: fileName,
+    stripe_payment_id: '',
+    stripe_amount: 0,
+    submission_time: body.timestamp || new Date().toISOString()
+  };
+
+  // Respond immediately
+  res.status(200).json({
+    status: 'accepted',
+    file_id: fileId,
+    message: 'Gutachtenprüfung gestartet (Beier Sonderprüfung)'
+  });
+
+  // Process in background
+  const { processGutachten } = require('./services/pipeline');
+  queue.enqueue(() => processGutachten(payload)).catch(err => {
+    console.error(`[webhook:gdrive] Background processing failed for ${fileId}:`, err);
+  });
+});
+
 // ── Start Server ────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;

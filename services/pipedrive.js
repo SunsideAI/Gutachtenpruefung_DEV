@@ -94,6 +94,44 @@ async function createNote(content, { deal_id }) {
 }
 
 /**
+ * Upload a file to a Pipedrive project
+ * @param {number} projectId
+ * @param {string} fileName
+ * @param {Buffer} data - File content
+ */
+async function uploadFileToProject(projectId, fileName, data) {
+  if (!PIPEDRIVE_API_TOKEN) throw new Error('PIPEDRIVE_API_TOKEN is required');
+
+  const boundary = '----FormBoundary' + Date.now().toString(16);
+  const crlf = '\r\n';
+
+  // Build multipart body manually (no external FormData dependency needed)
+  const parts = [];
+  parts.push(`--${boundary}${crlf}`);
+  parts.push(`Content-Disposition: form-data; name="file"; filename="${fileName}"${crlf}`);
+  parts.push(`Content-Type: application/pdf${crlf}${crlf}`);
+  const header = Buffer.from(parts.join(''));
+  const footer = Buffer.from(`${crlf}--${boundary}${crlf}Content-Disposition: form-data; name="project_id"${crlf}${crlf}${projectId}${crlf}--${boundary}--${crlf}`);
+
+  const body = Buffer.concat([header, data, footer]);
+
+  const url = apiUrl('/files');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+    body
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`File upload to project failed (${res.status}): ${text}`);
+  }
+
+  const json = await res.json();
+  return json.data;
+}
+
+/**
  * Find the latest PDF file from a project or its linked deal
  * @returns {{ id, name, add_time } | null}
  */
@@ -132,5 +170,6 @@ module.exports = {
   listDealFiles,
   downloadFile,
   createNote,
+  uploadFileToProject,
   findLatestPdf
 };

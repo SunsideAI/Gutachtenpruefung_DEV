@@ -312,16 +312,33 @@ app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
       };
 
       // Run pipeline
-      await queue.enqueue(() => processGutachten(pipelinePayload));
+      const pipelineResult = await queue.enqueue(() => processGutachten(pipelinePayload));
+
+      // Upload Prüfbericht PDF to Pipedrive project
+      if (pipelineResult?.reportBuffer) {
+        try {
+          const reportFileName = `Pruefbericht_${pdfFile.name}`;
+          await pipedrive.uploadFileToProject(projectId, reportFileName, pipelineResult.reportBuffer);
+          console.log(`[webhook:pipedrive] Prüfbericht uploaded to project ${projectId}`);
+        } catch (err) {
+          console.error(`[webhook:pipedrive] Report upload to Pipedrive failed (non-fatal):`, err.message);
+        }
+      }
 
       // Save result as note on deal
       const duration = ((Date.now() - start) / 1000).toFixed(0);
+      const score = pipelineResult?.gesamtscore ?? 'n/a';
+      const summary = pipelineResult?.zusammenfassung || '';
       await pipedrive.createNote(
-        `<b>Gutachtenprüfung abgeschlossen</b> (${duration}s)\n\nDatei: ${pdfFile.name}\nProjekt: ${project.title}`,
+        `<b>Gutachtenprüfung abgeschlossen</b> (${duration}s)\n\n` +
+        `<b>Datei:</b> ${pdfFile.name}\n` +
+        `<b>Score:</b> ${score}/10\n\n` +
+        `${summary}\n\n` +
+        `<i>Der vollständige Prüfbericht wurde am Projekt hinterlegt.</i>`,
         { deal_id: dealId }
       );
 
-      console.log(`[webhook:pipedrive] Pipeline complete for project ${projectId}`);
+      console.log(`[webhook:pipedrive] Pipeline complete for project ${projectId} (Score: ${score})`);
     } catch (err) {
       console.error(`[webhook:pipedrive] Background processing failed for project ${projectId}:`, err);
     }

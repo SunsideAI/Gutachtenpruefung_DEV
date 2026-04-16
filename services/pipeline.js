@@ -153,12 +153,13 @@ async function finishPipeline(logPrefix, gutachtenId, result, gesamtscore, paylo
 
   // Generate PDF report via PDFMonkey
   let reportStorageUrl = null;
+  let reportBuffer = null;
   try {
     const reportPayload = buildPdfMonkeyPayload(result, gesamtscore, averages, platzierung, payload);
     console.log(`${logPrefix} Generating PDF report...`);
     const docId = await pdfmonkey.generateDocument(process.env.PDFMONKEY_TEMPLATE_ID, reportPayload);
     const { download_url } = await pdfmonkey.waitForDocument(docId);
-    const reportBuffer = await pdfmonkey.downloadDocument(download_url);
+    reportBuffer = await pdfmonkey.downloadDocument(download_url);
     console.log(`${logPrefix} PDF report generated`);
 
     const reportPath = `berichte/${gutachtenId}/Pruefbericht_${payload.pdf_filename}`;
@@ -190,6 +191,8 @@ async function finishPipeline(logPrefix, gutachtenId, result, gesamtscore, paylo
   await supabase.setStatus(gutachtenId, 'Abgeschlossen');
   const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`${logPrefix} Pipeline complete in ${totalTime}s`);
+
+  return { reportBuffer, reportStorageUrl, gesamtscore, zusammenfassung: result.Zusammenfassung };
 }
 
 /**
@@ -329,8 +332,7 @@ async function processGutachten(payload) {
       const gesamtscore = existingRecord.gesamtscore;
 
       // Jump to ranking + report + email (steps 9-14)
-      await finishPipeline(logPrefix, gutachtenId, result, gesamtscore, payload, startTime);
-      return;
+      return await finishPipeline(logPrefix, gutachtenId, result, gesamtscore, payload, startTime);
     }
 
     // 6. Upload original PDF to Supabase Storage
@@ -370,7 +372,7 @@ async function processGutachten(payload) {
     console.log(`${logPrefix} Results saved to Supabase`);
 
     // 10. Finish pipeline (ranking, report, email)
-    await finishPipeline(logPrefix, gutachtenId, result, gesamtscore, payload, startTime);
+    return await finishPipeline(logPrefix, gutachtenId, result, gesamtscore, payload, startTime);
 
   } catch (err) {
     console.error(`${logPrefix} Fatal error:`, err);

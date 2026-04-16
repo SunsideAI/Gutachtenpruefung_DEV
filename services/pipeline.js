@@ -229,11 +229,19 @@ async function processGutachten(payload) {
       console.error(`${logPrefix} Internal notification failed (non-fatal):`, err.message);
     }
 
-    // 4. Download PDF
-    console.log(`${logPrefix} Downloading PDF...`);
-    const pdfBase64 = await downloadPdf(payload.pdf_url);
-    const pdfBuffer = Buffer.from(pdfBase64, 'base64');
-    console.log(`${logPrefix} PDF downloaded (${Math.round(pdfBuffer.length / 1024)} KB)`);
+    // 4. Download PDF (or use pre-downloaded buffer from Pipedrive)
+    let pdfBase64;
+    let pdfBuffer;
+    if (payload._pdfBase64Override) {
+      pdfBase64 = payload._pdfBase64Override;
+      pdfBuffer = Buffer.from(pdfBase64, 'base64');
+      console.log(`${logPrefix} Using pre-downloaded PDF (${Math.round(pdfBuffer.length / 1024)} KB)`);
+    } else {
+      console.log(`${logPrefix} Downloading PDF...`);
+      pdfBase64 = await downloadPdf(payload.pdf_url);
+      pdfBuffer = Buffer.from(pdfBase64, 'base64');
+      console.log(`${logPrefix} PDF downloaded (${Math.round(pdfBuffer.length / 1024)} KB)`);
+    }
 
     // 5. Calculate PDF hash for duplicate detection
     const pdfHash = crypto.createHash('sha256').update(pdfBuffer).digest('hex');

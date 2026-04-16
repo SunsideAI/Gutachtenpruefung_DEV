@@ -227,6 +227,107 @@ app.post('/webhook/gdrive', (req, res) => {
   });
 });
 
+// ── POST /webhooks/pipedrive/gutachten (Pipedrive Quality Gate trigger) ──
+
+app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
+  const start = Date.now();
+  const payload = req.body;
+
+  // Validate webhook secret
+  const secret = req.query.secret || req.headers['x-webhook-secret'];
+  if (secret !== process.env.WEBHOOK_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const projectId = payload.current?.id;
+  const newPhase = payload.current?.phase_id;
+  const oldPhase = payload.previous?.phase_id;
+  const qualityGatePhaseId = parseInt(process.env.GUTACHTEN_QUALITY_GATE_PHASE_ID || '0');
+
+  console.log(`[webhook:pipedrive] Project ${projectId}: phase ${oldPhase} → ${newPhase} (QG=${qualityGatePhaseId})`);
+
+  if (!projectId) {
+    return res.json({ triggered: false, reason: 'No project ID' });
+  }
+
+  // Only trigger on transition INTO Quality Gate phase
+  if (newPhase !== qualityGatePhaseId || oldPhase === qualityGatePhaseId) {
+    return res.json({ triggered: false, reason: 'Not Quality Gate transition' });
+  }
+
+  // Respond immediately, process in background
+  res.json({ triggered: true, projectId, message: 'Gutachtenprüfung gestartet' });
+
+  // Background processing
+  const pipedrive = require('./services/pipedrive');
+  const { processGutachten } = require('./services/pipeline');
+
+  (async () => {
+    try {
+      // Get project and linked deal
+      const project = await pipedrive.getProject(projectId);
+      const dealId = project.deal_ids?.[0];
+
+      if (!dealId) {
+        console.error(`[webhook:pipedrive] No deal linked to project ${projectId}`);
+        return;
+      }
+
+      // Find latest PDF
+      const pdfFile = await pipedrive.findLatestPdf(projectId, dealId);
+      if (!pdfFile) {
+        console.error(`[webhook:pipedrive] No PDF found for project ${projectId} / deal ${dealId}`);
+        return;
+      }
+
+      console.log(`[webhook:pipedrive] Found PDF: ${pdfFile.name} — downloading...`);
+
+      // Download PDF from Pipedrive
+      const pdfBuffer = await pipedrive.downloadFile(pdfFile.id);
+      const pdfBase64 = pdfBuffer.toString('base64');
+
+      // Get deal details for AG info
+      let deal = {};
+      try {
+        deal = await pipedrive.getDeal(dealId);
+      } catch (err) {
+        console.warn(`[webhook:pipedrive] Could not get deal details: ${err.message}`);
+      }
+
+      // Build pipeline payload
+      const pipelinePayload = {
+        fillout_submission_id: `pipedrive_project_${projectId}_${Date.now()}`,
+        vorname: deal.person_name?.split(' ')[0] || project.title || '',
+        nachname: deal.person_name?.split(' ').slice(1).join(' ') || '',
+        email: deal.person_id?.email?.[0]?.value || '',
+        unternehmensname: deal.org_name || deal.person_name || project.title || 'Pipedrive',
+        adresse: {},
+        pdf_url: `pipedrive_file://${pdfFile.id}`,
+        pdf_filename: pdfFile.name,
+        stripe_payment_id: '',
+        stripe_amount: 0,
+        submission_time: new Date().toISOString(),
+        _pipedrive: { projectId, dealId, pdfFileId: pdfFile.id },
+        _pdfBase64Override: pdfBase64
+      };
+
+      // Run pipeline
+      await queue.enqueue(() => processGutachten(pipelinePayload));
+
+      // Save result as note on deal
+      const duration = ((Date.now() - start) / 1000).toFixed(0);
+      await pipedrive.createNote(
+        `<b>Gutachtenprüfung abgeschlossen</b> (${duration}s)\n\nDatei: ${pdfFile.name}\nProjekt: ${project.title}`,
+        { deal_id: dealId }
+      );
+
+      console.log(`[webhook:pipedrive] Pipeline complete for project ${projectId}`);
+    } catch (err) {
+      console.error(`[webhook:pipedrive] Background processing failed for project ${projectId}:`, err);
+    }
+  })();
+});
+
 // ── Start Server ────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;

@@ -49,11 +49,13 @@ async function getProject(projectId) {
 }
 
 /**
- * List files attached to a project
+ * List files attached to a project (filtered from global /files endpoint)
+ * Note: /projects/{id}/files does not exist in Pipedrive v1 API
  */
 async function listProjectFiles(projectId) {
-  const data = await apiGet(`/projects/${projectId}/files`);
-  return data || [];
+  const data = await apiGet('/files', { limit: '500' });
+  const allFiles = data || [];
+  return allFiles.filter(f => String(f.project_id) === String(projectId));
 }
 
 /**

@@ -233,6 +233,8 @@ app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
   const start = Date.now();
   const payload = req.body;
 
+  console.log('[webhook:pipedrive] Raw payload:', JSON.stringify(req.body, null, 2));
+
   // Validate webhook secret
   const secret = req.query.secret || req.headers['x-webhook-secret'];
   if (secret !== process.env.WEBHOOK_SECRET) {

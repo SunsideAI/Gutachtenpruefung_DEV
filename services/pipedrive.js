@@ -72,6 +72,13 @@ async function getDeal(dealId) {
 }
 
 /**
+ * Get user by ID — returns { email, name, ... }
+ */
+async function getUser(userId) {
+  return apiGet(`/users/${userId}`);
+}
+
+/**
  * Download a file by ID — returns Buffer
  */
 async function downloadFile(fileId) {
@@ -166,6 +173,7 @@ async function findLatestPdf(projectId, dealId) {
 module.exports = {
   getProject,
   getDeal,
+  getUser,
   listProjectFiles,
   listDealFiles,
   downloadFile,

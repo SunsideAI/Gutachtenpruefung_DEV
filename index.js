@@ -241,9 +241,12 @@ app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const projectId = payload.current?.id;
-  const newPhase = payload.current?.phase_id;
+  // v2.0 + v1.0 compatible field extraction
+  const projectId = payload.data?.id || payload.current?.id;
+  const newPhase = payload.data?.phase_id || payload.current?.phase_id;
   const oldPhase = payload.previous?.phase_id;
+  const webhookDealIds = payload.data?.deal_ids || payload.current?.deal_ids;
+  const permittedUserIds = payload.meta?.permitted_user_ids || [];
   const qualityGatePhaseId = parseInt(process.env.GUTACHTEN_QUALITY_GATE_PHASE_ID || '0');
 
   console.log(`[webhook:pipedrive] Project ${projectId}: phase ${oldPhase} → ${newPhase} (QG=${qualityGatePhaseId})`);
@@ -263,12 +266,13 @@ app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
   // Background processing
   const pipedrive = require('./services/pipedrive');
   const { processGutachten } = require('./services/pipeline');
+  const mailer = require('./services/mailer');
 
   (async () => {
     try {
       // Get project and linked deal
       const project = await pipedrive.getProject(projectId);
-      const dealId = project.deal_ids?.[0];
+      const dealId = webhookDealIds?.[0] || project.deal_ids?.[0];
 
       if (!dealId) {
         console.error(`[webhook:pipedrive] No deal linked to project ${projectId}`);
@@ -296,12 +300,48 @@ app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
         console.warn(`[webhook:pipedrive] Could not get deal details: ${err.message}`);
       }
 
+      // Collect recipient emails from project participants
+      const recipientEmails = new Set();
+
+      // Add project owner
+      const ownerId = project.owner_id || payload.data?.owner_id;
+      if (ownerId) {
+        try {
+          const owner = await pipedrive.getUser(ownerId);
+          if (owner?.email) recipientEmails.add(owner.email);
+        } catch (err) {
+          console.warn(`[webhook:pipedrive] Could not get owner ${ownerId}: ${err.message}`);
+        }
+      }
+
+      // Add permitted users from webhook meta
+      for (const userId of permittedUserIds) {
+        try {
+          const user = await pipedrive.getUser(userId);
+          if (user?.email) recipientEmails.add(user.email);
+        } catch (err) {
+          console.warn(`[webhook:pipedrive] Could not get user ${userId}: ${err.message}`);
+        }
+      }
+
+      // Add deal contact email if available
+      if (deal.person_id?.email?.[0]?.value) {
+        recipientEmails.add(deal.person_id.email[0].value);
+      }
+
+      // Fallback to BEIER_EMAIL if no recipients found
+      const recipients = [...recipientEmails].filter(Boolean);
+      if (recipients.length === 0 && process.env.BEIER_EMAIL) {
+        recipients.push(process.env.BEIER_EMAIL);
+      }
+      console.log(`[webhook:pipedrive] Recipients: ${recipients.join(', ') || '(none)'}`);
+
       // Build pipeline payload
       const pipelinePayload = {
         fillout_submission_id: `pipedrive_project_${projectId}_${Date.now()}`,
         vorname: deal.person_name?.split(' ')[0] || project.title || '',
         nachname: deal.person_name?.split(' ').slice(1).join(' ') || '',
-        email: deal.person_id?.email?.[0]?.value || '',
+        email: recipients[0] || '',
         unternehmensname: deal.org_name || deal.person_name || project.title || 'Pipedrive',
         adresse: {},
         pdf_url: `pipedrive_file://${pdfFile.id}`,
@@ -324,6 +364,25 @@ app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
           console.log(`[webhook:pipedrive] Prüfbericht uploaded to project ${projectId}`);
         } catch (err) {
           console.error(`[webhook:pipedrive] Report upload to Pipedrive failed (non-fatal):`, err.message);
+        }
+
+        // Send result email to all recipients with report link
+        if (recipients.length > 0 && pipelineResult.reportStorageUrl) {
+          try {
+            for (const email of recipients) {
+              await mailer.sendResult(
+                email,
+                pipelinePayload.vorname,
+                pdfFile.name,
+                pipelineResult.zusammenfassung,
+                pipelineResult.gesamtscore,
+                pipelineResult.reportStorageUrl
+              );
+            }
+            console.log(`[webhook:pipedrive] Result email sent to ${recipients.length} recipient(s)`);
+          } catch (err) {
+            console.error(`[webhook:pipedrive] Result email failed (non-fatal):`, err.message);
+          }
         }
       }
 

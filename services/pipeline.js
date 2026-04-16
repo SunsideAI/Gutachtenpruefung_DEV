@@ -153,12 +153,13 @@ async function finishPipeline(logPrefix, gutachtenId, result, gesamtscore, paylo
 
   // Generate PDF report via PDFMonkey
   let reportStorageUrl = null;
+  let reportBuffer = null;
   try {
     const reportPayload = buildPdfMonkeyPayload(result, gesamtscore, averages, platzierung, payload);
     console.log(`${logPrefix} Generating PDF report...`);
     const docId = await pdfmonkey.generateDocument(process.env.PDFMONKEY_TEMPLATE_ID, reportPayload);
     const { download_url } = await pdfmonkey.waitForDocument(docId);
-    const reportBuffer = await pdfmonkey.downloadDocument(download_url);
+    reportBuffer = await pdfmonkey.downloadDocument(download_url);
     console.log(`${logPrefix} PDF report generated`);
 
     const reportPath = `berichte/${gutachtenId}/Pruefbericht_${payload.pdf_filename}`;
@@ -190,6 +191,8 @@ async function finishPipeline(logPrefix, gutachtenId, result, gesamtscore, paylo
   await supabase.setStatus(gutachtenId, 'Abgeschlossen');
   const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`${logPrefix} Pipeline complete in ${totalTime}s`);
+
+  return { reportBuffer, reportStorageUrl, gesamtscore, zusammenfassung: result.Zusammenfassung };
 }
 
 /**
@@ -229,11 +232,19 @@ async function processGutachten(payload) {
       console.error(`${logPrefix} Internal notification failed (non-fatal):`, err.message);
     }
 
-    // 4. Download PDF
-    console.log(`${logPrefix} Downloading PDF...`);
-    const pdfBase64 = await downloadPdf(payload.pdf_url);
-    const pdfBuffer = Buffer.from(pdfBase64, 'base64');
-    console.log(`${logPrefix} PDF downloaded (${Math.round(pdfBuffer.length / 1024)} KB)`);
+    // 4. Download PDF (or use pre-downloaded buffer from Pipedrive)
+    let pdfBase64;
+    let pdfBuffer;
+    if (payload._pdfBase64Override) {
+      pdfBase64 = payload._pdfBase64Override;
+      pdfBuffer = Buffer.from(pdfBase64, 'base64');
+      console.log(`${logPrefix} Using pre-downloaded PDF (${Math.round(pdfBuffer.length / 1024)} KB)`);
+    } else {
+      console.log(`${logPrefix} Downloading PDF...`);
+      pdfBase64 = await downloadPdf(payload.pdf_url);
+      pdfBuffer = Buffer.from(pdfBase64, 'base64');
+      console.log(`${logPrefix} PDF downloaded (${Math.round(pdfBuffer.length / 1024)} KB)`);
+    }
 
     // 5. Calculate PDF hash for duplicate detection
     const pdfHash = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
@@ -321,8 +332,7 @@ async function processGutachten(payload) {
       const gesamtscore = existingRecord.gesamtscore;
 
       // Jump to ranking + report + email (steps 9-14)
-      await finishPipeline(logPrefix, gutachtenId, result, gesamtscore, payload, startTime);
-      return;
+      return await finishPipeline(logPrefix, gutachtenId, result, gesamtscore, payload, startTime);
     }
 
     // 6. Upload original PDF to Supabase Storage
@@ -362,7 +372,7 @@ async function processGutachten(payload) {
     console.log(`${logPrefix} Results saved to Supabase`);
 
     // 10. Finish pipeline (ranking, report, email)
-    await finishPipeline(logPrefix, gutachtenId, result, gesamtscore, payload, startTime);
+    return await finishPipeline(logPrefix, gutachtenId, result, gesamtscore, payload, startTime);
 
   } catch (err) {
     console.error(`${logPrefix} Fatal error:`, err);

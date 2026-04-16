@@ -324,11 +324,6 @@ app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
         }
       }
 
-      // Add deal contact email if available
-      if (deal.person_id?.email?.[0]?.value) {
-        recipientEmails.add(deal.person_id.email[0].value);
-      }
-
       // Fallback to BEIER_EMAIL if no recipients found
       const recipients = [...recipientEmails].filter(Boolean);
       if (recipients.length === 0 && process.env.BEIER_EMAIL) {

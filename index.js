@@ -360,7 +360,7 @@ app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
       if (pipelineResult?.reportBuffer) {
         try {
           const reportFileName = `Pruefbericht_${pdfFile.name}`;
-          await pipedrive.uploadFileToProject(projectId, reportFileName, pipelineResult.reportBuffer);
+          await pipedrive.uploadFileToProject(projectId, reportFileName, pipelineResult.reportBuffer, dealId);
           console.log(`[webhook:pipedrive] Prüfbericht uploaded to project ${projectId}`);
         } catch (err) {
           console.error(`[webhook:pipedrive] Report upload to Pipedrive failed (non-fatal):`, err.message);

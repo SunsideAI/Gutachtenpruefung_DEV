@@ -103,41 +103,70 @@ async function createNote(content, { deal_id }) {
 }
 
 /**
- * Upload a file to a Pipedrive project
+ * Upload a file to a Pipedrive project (v2 API) with deal fallback
  * @param {number} projectId
  * @param {string} fileName
  * @param {Buffer} data - File content
+ * @param {number} [dealId] - Fallback: attach to deal if project upload fails
  */
-async function uploadFileToProject(projectId, fileName, data) {
+async function uploadFileToProject(projectId, fileName, data, dealId) {
   if (!PIPEDRIVE_API_TOKEN) throw new Error('PIPEDRIVE_API_TOKEN is required');
 
   const boundary = '----FormBoundary' + Date.now().toString(16);
   const crlf = '\r\n';
 
-  // Build multipart body manually (no external FormData dependency needed)
-  const parts = [];
-  parts.push(`--${boundary}${crlf}`);
-  parts.push(`Content-Disposition: form-data; name="file"; filename="${fileName}"${crlf}`);
-  parts.push(`Content-Type: application/pdf${crlf}${crlf}`);
-  const header = Buffer.from(parts.join(''));
-  const footer = Buffer.from(`${crlf}--${boundary}${crlf}Content-Disposition: form-data; name="project_id"${crlf}${crlf}${projectId}${crlf}--${boundary}--${crlf}`);
-
-  const body = Buffer.concat([header, data, footer]);
-
-  const url = apiUrl('/files');
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
-    body
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`File upload to project failed (${res.status}): ${text}`);
+  function buildMultipartBody(fieldName, fieldValue) {
+    const parts = [];
+    parts.push(`--${boundary}${crlf}`);
+    parts.push(`Content-Disposition: form-data; name="file"; filename="${fileName}"${crlf}`);
+    parts.push(`Content-Type: application/pdf${crlf}${crlf}`);
+    const header = Buffer.from(parts.join(''));
+    const footer = Buffer.from(
+      `${crlf}--${boundary}${crlf}` +
+      `Content-Disposition: form-data; name="${fieldName}"${crlf}${crlf}` +
+      `${fieldValue}${crlf}--${boundary}--${crlf}`
+    );
+    return Buffer.concat([header, data, footer]);
   }
 
-  const json = await res.json();
-  return json.data;
+  const headers = { 'Content-Type': `multipart/form-data; boundary=${boundary}` };
+
+  // Variante A: Pipedrive v2 API with project_id
+  try {
+    const v2Url = `https://api.pipedrive.com/api/v2/files?api_token=${PIPEDRIVE_API_TOKEN}`;
+    const body = buildMultipartBody('project_id', projectId);
+    const res = await fetch(v2Url, { method: 'POST', headers, body });
+
+    if (res.ok) {
+      const json = await res.json();
+      console.log(`[pipedrive] File uploaded to project ${projectId} via v2 API`);
+      return json.data;
+    }
+
+    const errText = await res.text();
+    console.warn(`[pipedrive] v2 project upload failed (${res.status}): ${errText}`);
+  } catch (err) {
+    console.warn(`[pipedrive] v2 API error: ${err.message}`);
+  }
+
+  // Variante B: Fallback — attach to deal via v1 API
+  if (dealId) {
+    console.log(`[pipedrive] Falling back to deal upload (deal ${dealId})`);
+    const body = buildMultipartBody('deal_id', dealId);
+    const v1Url = apiUrl('/files');
+    const res = await fetch(v1Url, { method: 'POST', headers, body });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`File upload to deal failed (${res.status}): ${text}`);
+    }
+
+    const json = await res.json();
+    console.log(`[pipedrive] File uploaded to deal ${dealId} via v1 API`);
+    return json.data;
+  }
+
+  throw new Error('File upload failed: v2 project upload failed and no dealId for fallback');
 }
 
 /**

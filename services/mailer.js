@@ -50,25 +50,22 @@ const EMAIL_STYLES = `
   </style>`;
 
 /**
- * Send confirmation email to the customer that the Gutachten is being processed
+ * Send confirmation email that the Gutachten is being processed (internal notification)
  */
 async function sendConfirmation(to, vorname, dateiname) {
   const { error } = await getClient().emails.send({
     from: FROM,
     to,
     bcc: BCC,
-    subject: `Ihr Gutachten wird geprüft – ${dateiname}`,
+    subject: `Gutachten wird geprüft – ${dateiname}`,
     html: `<!DOCTYPE html><html><head><meta charset="UTF-8">${EMAIL_STYLES}</head><body>
       <div class="container">
-        <p class="header">Guten Tag ${vorname},</p>
+        <p class="header">Guten Tag,</p>
         <p class="content">
-          vielen Dank für Ihr eingereichtes Gutachten <strong>"${dateiname}"</strong>. Wir haben es erhalten und es wird nun automatisiert geprüft.
+          ein neues Gutachten <strong>"${dateiname}"</strong> wurde empfangen und wird nun automatisiert geprüft.
         </p>
         <p class="content">
-          Sie erhalten das Ergebnis in wenigen Minuten per E-Mail.
-        </p>
-        <p class="content">
-          Sollten Sie Fragen haben, stehen wir Ihnen jederzeit gerne zur Verfügung.
+          Das Ergebnis wird in wenigen Minuten per E-Mail versendet.
         </p>
         <p class="content">Mit freundlichen Grüßen</p>
         ${SIGNATURE}

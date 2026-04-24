@@ -49,13 +49,33 @@ async function getProject(projectId) {
 }
 
 /**
- * List files attached to a project (filtered from global /files endpoint)
- * Note: /projects/{id}/files does not exist in Pipedrive v1 API
+ * List files attached to a project
+ * Tries v2 API first, then v1 global /files with project_id filter
  */
 async function listProjectFiles(projectId) {
+  // v2 API: /api/v2/projects/{id}/files
+  try {
+    const v2Url = `https://api.pipedrive.com/api/v2/projects/${projectId}/files?api_token=${PIPEDRIVE_API_TOKEN}`;
+    const res = await fetch(v2Url);
+    if (res.ok) {
+      const json = await res.json();
+      const files = json.data || [];
+      if (files.length > 0) {
+        console.log(`[pipedrive] Found ${files.length} project files via v2 API`);
+        return files;
+      }
+    }
+  } catch (err) {
+    console.warn(`[pipedrive] v2 project files failed: ${err.message}`);
+  }
+
+  // Fallback: v1 global /files filtered by project_id
   const data = await apiGet('/files', { limit: '500' });
   const allFiles = data || [];
-  return allFiles.filter(f => String(f.project_id) === String(projectId));
+  return allFiles.filter(f =>
+    String(f.project_id) === String(projectId) ||
+    String(f.active_flag) === 'true' && f.name && f.project_ids?.includes(projectId)
+  );
 }
 
 /**

@@ -247,16 +247,21 @@ app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
   const oldPhase = payload.previous?.phase_id;
   const webhookDealIds = payload.data?.deal_ids || payload.current?.deal_ids;
   const permittedUserIds = payload.meta?.permitted_user_ids || [];
-  const qualityGatePhaseId = parseInt(process.env.GUTACHTEN_QUALITY_GATE_PHASE_ID || '0');
+  const qualityGatePhaseIds = (process.env.GUTACHTEN_QUALITY_GATE_PHASE_IDS || '')
+    .split(',')
+    .map(s => parseInt(s.trim(), 10))
+    .filter(n => !isNaN(n));
 
-  console.log(`[webhook:pipedrive] Project ${projectId}: phase ${oldPhase} → ${newPhase} (QG=${qualityGatePhaseId})`);
+  console.log(`[webhook:pipedrive] Project ${projectId}: phase ${oldPhase} → ${newPhase} (QGs=${qualityGatePhaseIds.join(',')})`);
 
   if (!projectId) {
     return res.json({ triggered: false, reason: 'No project ID' });
   }
 
   // Only trigger on transition INTO Quality Gate phase
-  if (newPhase !== qualityGatePhaseId || oldPhase === qualityGatePhaseId) {
+  const isNowQG = qualityGatePhaseIds.includes(newPhase);
+  const wasQG = qualityGatePhaseIds.includes(oldPhase);
+  if (!isNowQG || wasQG) {
     return res.json({ triggered: false, reason: 'Not Quality Gate transition' });
   }
 

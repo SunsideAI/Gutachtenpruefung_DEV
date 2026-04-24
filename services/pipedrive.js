@@ -174,11 +174,13 @@ async function uploadFileToProject(projectId, fileName, data, dealId) {
  * @returns {{ id, name, add_time } | null}
  */
 async function findLatestPdf(projectId, dealId) {
+  const isGutachtenPdf = f => f.name && f.name.toLowerCase().endsWith('.pdf') && f.name.startsWith('GA_');
+
   // First: project files
   try {
     const projectFiles = await listProjectFiles(projectId);
     const projectPdf = (projectFiles || [])
-      .filter(f => f.name && f.name.toLowerCase().endsWith('.pdf'))
+      .filter(isGutachtenPdf)
       .sort((a, b) => new Date(b.add_time) - new Date(a.add_time))[0];
     if (projectPdf) return projectPdf;
   } catch (err) {
@@ -190,7 +192,7 @@ async function findLatestPdf(projectId, dealId) {
     try {
       const dealFiles = await listDealFiles(dealId);
       const dealPdf = (dealFiles || [])
-        .filter(f => f.name && f.name.toLowerCase().endsWith('.pdf'))
+        .filter(isGutachtenPdf)
         .sort((a, b) => new Date(b.add_time) - new Date(a.add_time))[0];
       if (dealPdf) return dealPdf;
     } catch (err) {

@@ -255,6 +255,7 @@ async function findLatestPdf(projectId, dealId) {
 }
 
 module.exports = {
+  apiGet,
   getProject,
   getDeal,
   getUser,

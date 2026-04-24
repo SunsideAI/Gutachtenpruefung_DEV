@@ -50,10 +50,10 @@ async function getProject(projectId) {
 
 /**
  * List files attached to a project
- * Tries v2 API first, then v1 global /files with project_id filter
+ * Tries multiple strategies since Pipedrive file-project linking is inconsistent
  */
 async function listProjectFiles(projectId) {
-  // v2 API: /api/v2/projects/{id}/files
+  // Strategy 1: v2 API
   try {
     const v2Url = `https://api.pipedrive.com/api/v2/projects/${projectId}/files?api_token=${PIPEDRIVE_API_TOKEN}`;
     const res = await fetch(v2Url);
@@ -69,13 +69,42 @@ async function listProjectFiles(projectId) {
     console.warn(`[pipedrive] v2 project files failed: ${err.message}`);
   }
 
-  // Fallback: v1 global /files filtered by project_id
-  const data = await apiGet('/files', { limit: '500' });
+  // Strategy 2: v1 global /files — log all files for debugging
+  const data = await apiGet('/files', { limit: '500', sort: 'add_time DESC' });
   const allFiles = data || [];
-  return allFiles.filter(f =>
-    String(f.project_id) === String(projectId) ||
-    String(f.active_flag) === 'true' && f.name && f.project_ids?.includes(projectId)
-  );
+
+  // Try project_id match
+  const byProjectId = allFiles.filter(f => String(f.project_id) === String(projectId));
+  if (byProjectId.length > 0) return byProjectId;
+
+  // Log first 5 GA_ files found globally for debugging
+  const gaFiles = allFiles.filter(f => f.name && f.name.startsWith('GA_'));
+  if (gaFiles.length > 0) {
+    console.log(`[pipedrive] Global GA_ files (${gaFiles.length}): ${gaFiles.slice(0, 5).map(f => `${f.name} (deal:${f.deal_id}, person:${f.person_id}, org:${f.org_id}, project:${f.project_id})`).join(' | ')}`);
+  }
+
+  // Try matching via project's linked deal_ids, person_ids, or org_ids
+  try {
+    const project = await getProject(projectId);
+    const linkedDealIds = (project.deal_ids || []).map(String);
+    const linkedPersonIds = (project.person_ids || []).map(String);
+    const linkedOrgIds = (project.org_ids || []).map(String);
+
+    const linked = allFiles.filter(f =>
+      (f.deal_id && linkedDealIds.includes(String(f.deal_id))) ||
+      (f.person_id && linkedPersonIds.includes(String(f.person_id))) ||
+      (f.org_id && linkedOrgIds.includes(String(f.org_id)))
+    );
+
+    if (linked.length > 0) {
+      console.log(`[pipedrive] Found ${linked.length} files via project entity links`);
+      return linked;
+    }
+  } catch (err) {
+    console.warn(`[pipedrive] Could not resolve project links: ${err.message}`);
+  }
+
+  return [];
 }
 
 /**

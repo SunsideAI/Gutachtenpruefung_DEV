@@ -306,41 +306,54 @@ app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
         console.warn(`[webhook:pipedrive] Could not get deal details: ${err.message}`);
       }
 
-      // Collect recipients (email + name) from project participants
-      const recipientMap = new Map(); // email → vorname (deduplicates by email)
+      // Collect recipients: ONLY the SV (Sachverständige) from the deal + Sunside AI
+      // Never send to customers (deal person/org)!
+      const recipients = [];
 
-      // Add project owner
-      const ownerId = project.owner_id || payload.data?.owner_id;
-      if (ownerId) {
-        try {
-          const owner = await pipedrive.getUser(ownerId);
-          if (owner?.email) {
-            recipientMap.set(owner.email, owner.name?.split(' ')[0] || '');
+      // Try to get SV from deal's custom fields or person linked to deal
+      // The "SV" field in Pipedrive links to a person — we need their email
+      if (deal) {
+        // Check all custom fields for a person reference (SV field)
+        const customFields = deal.custom_fields || {};
+        for (const [key, value] of Object.entries(customFields)) {
+          // Person-type custom fields have a numeric value (person ID)
+          if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) {
+            try {
+              const person = await pipedrive.apiGet(`/persons/${value}`);
+              if (person?.email?.[0]?.value) {
+                const email = person.email[0].value;
+                const vorname = person.first_name || person.name?.split(' ')[0] || '';
+                // Skip if it's the deal contact (customer)
+                if (deal.person_id?.value && String(deal.person_id.value) === String(value)) continue;
+                recipients.push({ email, vorname });
+                console.log(`[webhook:pipedrive] SV found: ${vorname} <${email}>`);
+                break;
+              }
+            } catch { /* not a person field, skip */ }
           }
-        } catch (err) {
-          console.warn(`[webhook:pipedrive] Could not get owner ${ownerId}: ${err.message}`);
         }
       }
 
-      // Add permitted users from webhook meta
-      for (const userId of permittedUserIds) {
-        try {
-          const user = await pipedrive.getUser(userId);
-          if (user?.email && !recipientMap.has(user.email)) {
-            recipientMap.set(user.email, user.name?.split(' ')[0] || '');
+      // Fallback: project owner (usually Patrick Beier)
+      if (recipients.length === 0) {
+        const ownerId = project.owner_id || payload.data?.owner_id;
+        if (ownerId) {
+          try {
+            const owner = await pipedrive.getUser(ownerId);
+            if (owner?.email) {
+              recipients.push({ email: owner.email, vorname: owner.name?.split(' ')[0] || '' });
+            }
+          } catch (err) {
+            console.warn(`[webhook:pipedrive] Could not get owner: ${err.message}`);
           }
-        } catch (err) {
-          console.warn(`[webhook:pipedrive] Could not get user ${userId}: ${err.message}`);
         }
       }
 
-      // Fallback to BEIER_EMAIL if no recipients found
-      const recipients = [...recipientMap.entries()]
-        .filter(([email]) => Boolean(email))
-        .map(([email, vorname]) => ({ email, vorname }));
+      // Last fallback
       if (recipients.length === 0 && process.env.BEIER_EMAIL) {
         recipients.push({ email: process.env.BEIER_EMAIL, vorname: 'Patrick' });
       }
+
       console.log(`[webhook:pipedrive] Recipients: ${recipients.map(r => `${r.vorname} <${r.email}>`).join(', ') || '(none)'}`);
 
       // Build pipeline payload

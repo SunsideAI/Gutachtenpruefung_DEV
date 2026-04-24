@@ -278,6 +278,7 @@ app.post('/webhooks/pipedrive/gutachten', async (req, res) => {
       // Get project and linked deal
       const project = await pipedrive.getProject(projectId);
       const dealId = webhookDealIds?.[0] || project.deal_ids?.[0];
+      console.log(`[webhook:pipedrive] Deal ID: ${dealId}, webhookDealIds: ${JSON.stringify(webhookDealIds)}, project.deal_ids: ${JSON.stringify(project.deal_ids)}`);
 
       if (!dealId) {
         console.error(`[webhook:pipedrive] No deal linked to project ${projectId}`);

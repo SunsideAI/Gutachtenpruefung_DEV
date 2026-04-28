@@ -67,9 +67,12 @@ app.post('/evaluate', async (req, res) => {
   });
 });
 
-// ── POST /webhook/fillout (Phase 2 — Fillout webhook trigger) ──────
+// ── POST /webhook/fillout (Phase 2 — DEACTIVATED until Zapier migration complete) ──
 
 app.post('/webhook/fillout', (req, res) => {
+  console.log('[webhook:fillout] Endpoint temporarily disabled — Zapier still active');
+  return res.status(200).json({ status: 'disabled', message: 'Fillout webhook temporarily disabled' });
+  /* ORIGINAL CODE — re-enable when Zapier is fully migrated:
   const body = req.body;
 
   // Validate webhook secret (from query param, header, or body)
@@ -169,6 +172,7 @@ app.post('/webhook/fillout', (req, res) => {
   queue.enqueue(() => processGutachten(payload)).catch(err => {
     console.error(`[webhook] Background processing failed for ${submissionId}:`, err);
   });
+  END OF DISABLED CODE */
 });
 
 // ── POST /webhook/gdrive (Patrick Beier — Sonderprüfung ohne Zahlung) ──
